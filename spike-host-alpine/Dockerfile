@@ -18,5 +18,5 @@ WORKDIR /spike
 COPY package.json package-lock.json* ./
 RUN npm install --omit=dev
 
-COPY driver.mjs ./
+COPY driver.mjs driver-extras.mjs ./
 CMD ["node", "driver.mjs"]

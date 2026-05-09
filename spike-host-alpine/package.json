@@ -6,6 +6,7 @@
   "description": "Host-Alpine spike: confirm pi-agent-core + pi-ai install and run on musl, with custom auth callback and AbortSignal support.",
   "dependencies": {
     "@mariozechner/pi-agent-core": "^0.73.0",
-    "@mariozechner/pi-ai": "^0.73.0"
+    "@mariozechner/pi-ai": "^0.73.0",
+    "@mariozechner/pi-coding-agent": "^0.73.0"
   }
 }

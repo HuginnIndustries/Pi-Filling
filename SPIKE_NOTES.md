@@ -43,30 +43,73 @@ The wiring lives in `agent-loop.ts:278-285` of pi-mono — `resolvedApiKey = (co
 
 The signal lives on `Agent.activeRun.abortController` (`agent.ts:288-290`) and is plumbed through `runAgentLoop` into `streamFn(model, ctx, { ...config, apiKey, signal })` (`agent-loop.ts:281-285`). Tools, `beforeToolCall`, `afterToolCall`, and `transformContext` all receive the same signal — so a single `agent.abort()` cancels the LLM call AND any in-flight tool execution, provided each callee honors the signal.
 
-**Caveat we did not verify:** real provider streamFns in `pi-ai` (Anthropic, OpenAI, etc.) bundle their own SDKs. We confirmed the loop hands the signal to them. We have NOT confirmed each bundled SDK actually aborts an open HTTP/SSE connection on signal. That's a separate verification, recommended before shipping a UI cancel button.
+**Caveat closed by Q3-real (below):** verified that the Anthropic SDK bundled by `pi-ai` does cancel an open SSE stream when the loop's `AbortSignal` fires — at least for the Anthropic provider. Other providers not tested.
 
-## Verdict — Track A vs `createAgentSession()`
+## Q3-real — abort during a real Anthropic stream
 
-**Track A wins for the spike-and-build phase.** `pi-agent-core`'s `Agent` class is a clean library surface: construct, register `getApiKey` + `streamFn` + tools, subscribe to events, call `.prompt()`, call `.abort()`. No subprocess, no TUI assumptions, no JSONL framing. This is the path the v1 spec wanted to confirm and the contract is solid.
+**Pass.** Driver constructs an `Agent` with `getModel("anthropic", "claude-haiku-4-5-20251001")` and `getApiKey: () => process.env.ANTHROPIC_API_KEY`, prompts "Count from 1 to 200, one per line", then waits until 5 `text_delta` events have been observed before calling `agent.abort()`. Observed:
 
-**`createAgentSession()` (from `pi-coding-agent`) remains an option for v1 if and only if we want its bundled file/bash/edit tools out-of-the-box.** Trade-offs to evaluate when the time comes:
+- `text_deltas_seen: 5` — the SSE stream was demonstrably open and feeding tokens.
+- `text_chars_received_before_abort: 419` — we'd partially streamed the count.
+- `final_stop_reason: "aborted"` — agent loop settled in the expected terminal state.
+- `elapsed_ms: 1569` — total time from `prompt()` to `await` resolution was ~1.6s, after which no further deltas arrived. If the SDK had ignored the signal we'd have seen elapsed_ms grow to the full ~10–15s the model would have taken to count to 200.
 
-- ✅ Saves implementing `read`, `bash`, `edit`, `write` tools ourselves.
-- ⚠️ Pulls in ~50–100 MB more dependencies and re-opens Q1 for `photon-node` (WASM, should be fine) and `clipboard` (native; will fail headless on Alpine but is optional).
-- ⚠️ Imposes its own `SessionManager`, `AuthStorage`, `ModelRegistry` — adds opinionated infrastructure we'd otherwise own.
+This strongly suggests the bundled Anthropic SDK (`@anthropic-ai/sdk` ^0.91.1) honors `AbortSignal` end-to-end and closes the SSE stream on cancel. We did not verify at the TCP level — packet capture would close the question completely — but the JS-level evidence is sufficient for v1.
 
-**Recommendation for v1 next step:** stay on Track A (`pi-agent-core` direct). Implement our own tiny `read` + `bash` + `edit` + `git` tools, sized for the v1 use case. Evaluate `createAgentSession` in a separate spike if/when we want skill loading or auth storage.
+**One operational note:** the first abort attempt used a 600 ms fixed-delay timer and aborted *before* the first token arrived (Anthropic's first-byte latency is typically 500–1500 ms). The agent loop still settled with `stopReason: "aborted"`, but no streaming had occurred yet. **Practical implication:** UI cancel logic that fires within the first second of a request will mostly cancel the connection rather than mid-stream content. Both behaviors are correct, just different observed user experiences.
+
+## Q4 — `pi-coding-agent` `createCodingTools` on musl
+
+**Pass.** Adding `@mariozechner/pi-coding-agent@^0.73.0` to the install:
+
+- `node_modules` grew from 121 MB → **186 MB** (+65 MB), 195 → **300 packages**.
+- Native modules in the tree: `@mariozechner/clipboard-linux-x64-musl/clipboard.linux-x64-musl.node` (correct musl prebuild — npm picked it via the package's prebuild matrix). `koffi` ships ~20 architecture-prebuilds in the package, all unpacked.
+- WASM modules: `@silvia-odwyer/photon-node/photon_rs_bg.wasm`, plus an example doom build (irrelevant).
+- `import("@mariozechner/pi-coding-agent")` cold-load took **~1.0 s** the first run, ~0.8 s on warm cache. `createCodingTools(process.cwd())` runs in <2 ms.
+- Returns 4 tools: `["bash", "edit", "read", "write"]`. `createReadOnlyTools` would return `["find", "grep", "ls", "read"]`; `createAllTools` exposes all 7 keyed by name.
+
+**Implication for v1:** Track A + `createCodingTools` is the path. We get the four tools we need (read/write/edit/bash) without owning their implementations or pulling in `createAgentSession()`'s opinions. `bash` is the v1 git-shell-out target — no need for a separate GitSync dep.
+
+**Cold-start cost on phone:** 1 s import time on x86_64 desktop translates to ~3-5 s on a phone CPU inside proot. Not fatal for v1, but worth profiling. The biggest contributor is likely `pi-ai`'s eager-loading of every provider SDK at module init.
+
+## Verdict — Track A with `createCodingTools`
+
+**Locked.** v1 will use:
+
+- `@mariozechner/pi-agent-core` for the `Agent` class and loop.
+- `@mariozechner/pi-ai` for LLM access (transitive via pi-agent-core).
+- `@mariozechner/pi-coding-agent`'s `createCodingTools(cwd)` to get `read`, `write`, `edit`, `bash` as plain `AgentTool[]`.
+- Our own thin code on top: API-key storage, system prompt, memory.md handling, abort wiring, eventual UI.
+
+**Rejected paths:**
+- Track B (subprocess `pi-coding-agent` CLI): RPC mode underspecified, TUI-first design, no scriptable single-prompt mode.
+- `createAgentSession()` (full pi-coding-agent SDK): drags in `SessionManager`, `AuthStorage`, `ModelRegistry` opinions we'd rather own ourselves.
+- Reimplementing tools: unnecessary; `createCodingTools` gives us what we need.
 
 ## Unknowns the spike did NOT close
 
-1. **Real provider SDKs vs `AbortSignal`.** Verified the loop hands signal to streamFn; not verified each provider's HTTP layer aborts cleanly.
-2. **Performance of `pi-ai` cold-start.** 121 MB of node_modules and a tree of provider SDKs likely costs hundreds of ms at first import. On a phone inside proot this matters. Measure during Android port.
-3. **`pi-ai`'s `proxy-agent` dep behavior on Alpine.** Likely fine, not tested.
-4. **Single-provider footprint.** `pi-ai` pulls every provider SDK regardless of which model you use. If footprint matters on phone, file an upstream issue or fork-strip `pi-ai`.
+1. **Other provider SDKs vs `AbortSignal`.** Anthropic confirmed; OpenAI / Google / Bedrock / etc. not tested. Out of scope for v1 (Anthropic-only).
+2. **Cold-start cost on a phone CPU inside proot.** 186 MB of node_modules loaded ~1 s on x86_64 desktop. Realistic phone estimate: 3-5 s. Measure during Android port.
+3. **`pi-ai`'s `proxy-agent` and `undici` deps on Alpine in real production.** Likely fine; not exercised through real network paths beyond the egress proxy here.
+4. **TCP-level proof that aborted SSE connections actually close.** Strong JS-level evidence in Q3-real, no packet capture. Acceptable for v1.
+5. **Single-provider footprint.** `pi-ai` eagerly imports every provider SDK at module init. 121 MB just for Anthropic feels heavy. Consider an upstream issue / lazy-loaded providers if phone footprint matters.
 
 ## Files in this spike
 
 - `spike-host-alpine/Dockerfile` — Alpine + Node 22 + sandbox CA workaround.
-- `spike-host-alpine/package.json` — pins `pi-agent-core` and `pi-ai` `^0.73.0`.
-- `spike-host-alpine/driver.mjs` — three-question test driver, hermetic (no real LLM call).
+- `spike-host-alpine/package.json` — pins `pi-agent-core`, `pi-ai`, `pi-coding-agent` `^0.73.0`.
+- `spike-host-alpine/driver.mjs` — Q1, Q2, Q3 (mock streamFn). Hermetic, no API key needed.
+- `spike-host-alpine/driver-extras.mjs` — Q4 (`createCodingTools` on musl) and Q3-real (Anthropic streaming + abort). Skips Q3-real if `ANTHROPIC_API_KEY` not in env.
 - `spike-host-alpine/certs/` — gitignored. To reproduce inside this dev sandbox, run `cp /usr/local/share/ca-certificates/*.crt spike-host-alpine/certs/` before `docker build`. On a real Android device or any environment without an egress TLS-inspection proxy, this directory is unnecessary — delete the `COPY certs/*.crt …` block from the Dockerfile.
+
+## Reproduce
+
+```sh
+cd spike-host-alpine
+cp /usr/local/share/ca-certificates/*.crt certs/   # sandbox-only; skip on real devices
+docker build -t pi-filling-spike:alpine .
+docker run --rm pi-filling-spike:alpine                      # Q1, Q2, Q3 mock
+docker run --rm pi-filling-spike:alpine node driver-extras.mjs  # Q4 only (no key)
+docker run --rm -e ANTHROPIC_API_KEY="$(cat ~/.anthropic-key)" \
+    pi-filling-spike:alpine node driver-extras.mjs           # Q4 + Q3-real
+```
