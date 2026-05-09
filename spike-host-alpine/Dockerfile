@@ -8,9 +8,11 @@ FROM node:22-alpine
 # (corporate proxies, this project's own dev sandbox, etc). Drop .crt files
 # into certs/ before `docker build` and they'll be trusted by Node at runtime.
 # The directory is committed empty (certs/.gitkeep), so this step is a no-op
-# on machines that don't need it.
+# on machines that don't need it. We always create the bundle file (empty if
+# no certs supplied) so NODE_EXTRA_CA_CERTS doesn't trigger a startup warning.
 COPY certs /tmp/extra-certs
-RUN if ls /tmp/extra-certs/*.crt > /dev/null 2>&1; then \
+RUN touch /etc/ssl/certs/spike-extra-cas.crt && \
+    if ls /tmp/extra-certs/*.crt > /dev/null 2>&1; then \
         for f in /tmp/extra-certs/*.crt; do \
             printf "\n" >> /etc/ssl/certs/spike-extra-cas.crt; \
             cat "$f" >> /etc/ssl/certs/spike-extra-cas.crt; \
