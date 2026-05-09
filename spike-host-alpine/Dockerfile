@@ -1,17 +1,22 @@
-# Spike: prove @mariozechner/pi-agent-core + pi-ai run on Alpine/musl.
-# node:22-alpine ships Alpine 3.x with Node 22 + npm pre-installed, so we don't
-# have to fight apk + the sandbox egress proxy to install Node. The musl libc +
-# Alpine userland — the actual things we're testing — are unchanged.
+# Spike: prove @mariozechner/pi-agent-core + pi-coding-agent run on Alpine/musl.
+# node:22-alpine ships Alpine + Node 22 + npm pre-installed, so we don't have to
+# fight apk to install Node. The musl libc + Alpine userland — the actual things
+# we're testing — are unchanged.
 FROM node:22-alpine
 
-# Trust the host MITM proxy CAs so npm install can reach registry.npmjs.org.
-# On a real device this step is unnecessary.
-COPY certs/*.crt /usr/local/share/ca-certificates/
-RUN for f in /usr/local/share/ca-certificates/*.crt; do \
-        printf "\n" >> /etc/ssl/certs/spike-extra-cas.crt; \
-        cat "$f" >> /etc/ssl/certs/spike-extra-cas.crt; \
-        printf "\n" >> /etc/ssl/certs/spike-extra-cas.crt; \
-    done
+# Optional escape hatch for environments that intercept TLS with a custom CA
+# (corporate proxies, this project's own dev sandbox, etc). Drop .crt files
+# into certs/ before `docker build` and they'll be trusted by Node at runtime.
+# The directory is committed empty (certs/.gitkeep), so this step is a no-op
+# on machines that don't need it.
+COPY certs /tmp/extra-certs
+RUN if ls /tmp/extra-certs/*.crt > /dev/null 2>&1; then \
+        for f in /tmp/extra-certs/*.crt; do \
+            printf "\n" >> /etc/ssl/certs/spike-extra-cas.crt; \
+            cat "$f" >> /etc/ssl/certs/spike-extra-cas.crt; \
+            printf "\n" >> /etc/ssl/certs/spike-extra-cas.crt; \
+        done; \
+    fi
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/spike-extra-cas.crt
 
 WORKDIR /spike

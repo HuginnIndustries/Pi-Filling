@@ -1,0 +1,4 @@
+# This file keeps the certs/ directory in git even when empty, so Dockerfile's
+# COPY certs /tmp/extra-certs step works on a fresh clone without manual setup.
+# Drop a .crt here only if you need to trust a custom CA (corporate proxy etc).
+# .crt files in this directory are gitignored (see /.gitignore).

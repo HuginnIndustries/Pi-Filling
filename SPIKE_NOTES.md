@@ -104,12 +104,15 @@ This strongly suggests the bundled Anthropic SDK (`@anthropic-ai/sdk` ^0.91.1) h
 
 ## Reproduce
 
+Step-by-step instructions: [`spike-host-alpine/RUNBOOK.md`](./spike-host-alpine/RUNBOOK.md).
+
+Quick version:
+
 ```sh
 cd spike-host-alpine
-cp /usr/local/share/ca-certificates/*.crt certs/   # sandbox-only; skip on real devices
 docker build -t pi-filling-spike:alpine .
-docker run --rm pi-filling-spike:alpine                      # Q1, Q2, Q3 mock
-docker run --rm pi-filling-spike:alpine node driver-extras.mjs  # Q4 only (no key)
+docker run --rm pi-filling-spike:alpine                          # Q1, Q2, Q3 (no API key)
+docker run --rm pi-filling-spike:alpine node driver-extras.mjs   # Q4 only (no API key)
 docker run --rm -e ANTHROPIC_API_KEY="$(cat ~/.anthropic-key)" \
-    pi-filling-spike:alpine node driver-extras.mjs           # Q4 + Q3-real
+    pi-filling-spike:alpine node driver-extras.mjs               # Q4 + Q3-real
 ```
