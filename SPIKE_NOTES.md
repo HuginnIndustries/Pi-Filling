@@ -72,6 +72,32 @@ This strongly suggests the bundled Anthropic SDK (`@anthropic-ai/sdk` ^0.91.1) h
 
 **Cold-start cost on phone:** 1 s import time on x86_64 desktop translates to ~3-5 s on a phone CPU inside proot. Not fatal for v1, but worth profiling. The biggest contributor is likely `pi-ai`'s eager-loading of every provider SDK at module init.
 
+## E2E — agent loop end-to-end (Anthropic + createCodingTools)
+
+**Pass.** `driver-e2e.mjs` creates a throwaway git repo, instantiates an `Agent` with `claude-haiku-4-5-20251001` and `createCodingTools(repoPath)`, then prompts:
+
+> Append a new line to README.md that reads exactly: "Spike pass: end-to-end agent loop verified." Then commit the change with the message 'spike: e2e verification'.
+
+Observed run:
+
+```
+[tool 1] read   {"path":"README.md"}
+[tool 2] edit   {"path":"README.md","edits":[{"oldText":"…","newText":"…"}]}
+[tool 3] bash   {"command":"cd /tmp/pi-e2e-xP7hvM && git add README.md && git commit -m \"spike: e2e verification\""}
+{
+  "pass": true, "elapsed_ms": 5163, "assistant_turns": 4, "tool_calls": 3,
+  "readme_updated": true, "new_commit_made": true,
+  "head_commit_message": "spike: e2e verification",
+  "final_stop_reason": "stop"
+}
+```
+
+The agent took the obvious shape: `read` → `edit` → `bash`. 4 assistant turns, 3 tool calls, 5.2 s wall, stopped naturally. Cost on `claude-haiku-4-5`: under 1¢.
+
+**Validation note:** the e2e run was executed on the Ubuntu host (Node 22, glibc, host's git) rather than inside the Alpine container, because this dev sandbox's egress proxy blocks Alpine's package CDN so `apk add git` fails here. The agent-loop logic is identical regardless of libc; Q1 and Q4 already proved the Node packages work on musl. Users running on a normal machine will exercise the full Alpine path via `docker run … node driver-e2e.mjs`.
+
+**One observation worth recording:** the agent's bash command prepended `cd /tmp/pi-e2e-xP7hvM &&` defensively, even though `createCodingTools(cwd)` is supposed to bind tools to that cwd. Suggests the bash tool's cwd is NOT the `cwd` arg — likely `process.cwd()`. Doesn't break anything (the agent compensated), but worth either passing `--cwd` to bash explicitly or running our wrapper from inside the repo dir.
+
 ## Verdict — Track A with `createCodingTools`
 
 **Locked.** v1 will use:
@@ -115,4 +141,6 @@ docker run --rm pi-filling-spike:alpine                          # Q1, Q2, Q3 (n
 docker run --rm pi-filling-spike:alpine node driver-extras.mjs   # Q4 only (no API key)
 docker run --rm -e ANTHROPIC_API_KEY="$(cat ~/.anthropic-key)" \
     pi-filling-spike:alpine node driver-extras.mjs               # Q4 + Q3-real
+docker run --rm -e ANTHROPIC_API_KEY="$(cat ~/.anthropic-key)" \
+    pi-filling-spike:alpine node driver-e2e.mjs                  # E2E read+edit+commit
 ```

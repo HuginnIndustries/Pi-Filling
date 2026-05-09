@@ -9,7 +9,7 @@ Working repository for a phone-first AI coding agent. No public name yet — ide
 
 ## Status
 
-Spike #1 complete (host Alpine, x86_64). Track A confirmed viable. Next: end-to-end use case (read README → edit → commit → push) against real Anthropic, still on host Alpine. Android port deferred.
+Spike #1 complete (host Alpine, x86_64). Track A locked: `pi-agent-core` + `createCodingTools` from `pi-coding-agent`. End-to-end agent loop (read README → edit → `git commit`) verified against real Anthropic. Push step deferred to Android port. Next: Android wrapper + Kai's Alpine bootstrap.
 
 ## Working agreement
 

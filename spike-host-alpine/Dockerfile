@@ -4,6 +4,9 @@
 # we're testing — are unchanged.
 FROM node:22-alpine
 
+# git is needed for driver-e2e.mjs (the agent's bash tool runs git commands).
+RUN apk add --no-cache git
+
 # Optional escape hatch for environments that intercept TLS with a custom CA
 # (corporate proxies, this project's own dev sandbox, etc). Drop .crt files
 # into certs/ before `docker build` and they'll be trusted by Node at runtime.
@@ -25,5 +28,5 @@ WORKDIR /spike
 COPY package.json package-lock.json* ./
 RUN npm install --omit=dev
 
-COPY driver.mjs driver-extras.mjs ./
+COPY driver.mjs driver-extras.mjs driver-e2e.mjs ./
 CMD ["node", "driver.mjs"]

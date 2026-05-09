@@ -156,7 +156,43 @@ The interesting fields:
 - `elapsed_ms < 5000` — the SDK closed the connection promptly. If the SDK
   ignored `AbortSignal` we'd see this grow to ~10–15 s (full count to 200).
 
-## 7. Optional: corporate proxy / MITM environments
+## 7. End-to-end run — agent reads, edits, commits (API key required)
+
+This is the v1 acceptance test from `V1_SPEC.md` minus the push step. The
+driver creates a throwaway git repo inside the container, lets a real
+Anthropic agent edit a README and `git commit` via `createCodingTools`,
+then verifies the commit happened.
+
+```sh
+# Reuse the env-var pattern from §6.
+docker run --rm -e ANTHROPIC_API_KEY pi-filling-spike:alpine node driver-e2e.mjs
+```
+
+Expected output:
+
+```json
+{
+  "pass": true,
+  "elapsed_ms": ~5000,
+  "assistant_turns": ~4,
+  "tool_calls": ~3,
+  "readme_updated": true,
+  "new_commit_made": true,
+  "head_commit_message": "spike: e2e verification",
+  "final_stop_reason": "stop"
+}
+```
+
+A live tool log (read → edit → bash) is printed to stderr. The agent
+should naturally stop after committing; `final_stop_reason: "stop"` (not
+"aborted" or "error") is the success signal. Cost: under 1¢ on
+`claude-haiku-4-5`.
+
+If the agent runs more turns or fails verification, capture the JSON
+output and paste it back — the per-turn / per-tool counts and the
+`final_stop_reason` together usually tell you what went wrong.
+
+## 8. Optional: corporate proxy / MITM environments
 
 If `npm install` fails during the build with errors like
 `SELF_SIGNED_CERT_IN_CHAIN` or `unable to verify the first certificate`,
@@ -175,16 +211,16 @@ The Dockerfile concatenates everything in `certs/*.crt` into a bundle and
 sets `NODE_EXTRA_CA_CERTS` so npm and the Anthropic SDK both trust it.
 `.crt` files are gitignored (see `.gitignore`).
 
-## 8. Cleanup
+## 9. Cleanup
 
 ```sh
 docker rmi pi-filling-spike:alpine
 rm -f ~/.anthropic-key   # if you used Option A in §6
 ```
 
-## 9. What to look for
+## 10. What to look for
 
-If any of Q1, Q2, Q3 (mock), Q4, or Q3-real fail unexpectedly, that's a
+If any of Q1, Q2, Q3 (mock), Q4, Q3-real, or the §7 e2e run fail unexpectedly, that's a
 signal something has shifted upstream in `pi-mono` since the spike was
 locked. Check the corresponding section of [`../SPIKE_NOTES.md`](../SPIKE_NOTES.md)
 for what was originally observed and where the contract lives in
