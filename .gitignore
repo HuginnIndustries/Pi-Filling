@@ -1,0 +1,8 @@
+node_modules/
+*.log
+.DS_Store
+
+# Sandbox-only egress proxy CAs (copied at build time when reproducing
+# the spike inside this development environment). Not needed on real
+# devices; kept out of git so we don't leak environment-specific infra.
+spike-host-alpine/certs/
