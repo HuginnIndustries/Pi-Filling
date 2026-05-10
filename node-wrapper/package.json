@@ -1,0 +1,19 @@
+{
+  "name": "pi-filling-node-wrapper",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "description": "Node wrapper around @mariozechner/pi-agent-core. Owns one Agent instance for the lifetime of a process; exposes a small JSONL RPC surface over stdio so Layer 1 (Android app) can drive it. See DESIGN.md.",
+  "main": "src/wrapper.mjs",
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "@mariozechner/pi-agent-core": "^0.73.0",
+    "@mariozechner/pi-ai": "^0.73.0",
+    "@mariozechner/pi-coding-agent": "^0.73.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

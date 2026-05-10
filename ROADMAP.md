@@ -33,10 +33,11 @@ git repo at a time.
 
 ### Work breakdown
 
-- **1.1 Wrapper.** Node program that owns one `Agent` instance, exposes
-  a small RPC surface (`prompt`, `subscribe`, `abort`), reads
-  `memory.md` from the active repo, and writes back at end-of-run.
-  Probably ~300 LOC plus tests.
+- **1.1 Wrapper.** ✅ done. See [`node-wrapper/`](./node-wrapper/) — one
+  `Agent` instance per process, JSONL RPC (`prompt` / `abort` / `state`
+  / `shutdown`) over stdio, `memory.md` injection at startup, real
+  edit-and-commit verified by 7 integration tests against Anthropic.
+  Protocol contract: [`node-wrapper/DESIGN.md`](./node-wrapper/DESIGN.md).
 - **1.2 Android sandbox port.** Vendor `build-proot.sh` from Kai. Build
   a Compose-only minimal Android app with Kai's `DaemonService` pattern
   and `LinuxSandboxManager` equivalent. Bundle Node 22 + git apk

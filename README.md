@@ -15,7 +15,8 @@ the Android shell is not yet built.
 | Stage | What | Status |
 |---|---|---|
 | 0 | Reading + host-Alpine spike | ✅ done |
-| 1 | v1 — Android app, on-device agent, GitHub round-trip | ⏳ in progress |
+| 1.1 | Node wrapper (Layer 3) with stdio RPC + memory.md round-trip | ✅ done |
+| 1.2+ | Android shell, key storage, GitHub auth, push | ⏳ next |
 | 1.5 | Polish, observability, memory indexing | future |
 | 2 | Phone+server pair with session resume | future |
 
@@ -94,7 +95,13 @@ CONTRIBUTING.md             How development works today.
 SECURITY.md                 How to report vulnerabilities.
 LICENSE                     MIT.
 
-spike-host-alpine/          Self-contained Docker spike that proves Layer 3.
+node-wrapper/               Layer 3 — one-process agent + JSONL RPC over stdio.
+├── DESIGN.md                Protocol contract (read before writing a Layer 1 client).
+├── src/wrapper.mjs          The wrapper itself (~270 LOC).
+├── test/integration.mjs     Spawn-the-wrapper integration tests (7 tests).
+└── package.json
+
+spike-host-alpine/          Stage-0 building-block proofs (regression tests).
 ├── Dockerfile
 ├── package.json
 ├── driver.mjs               Q1 install + Q2 auth + Q3 abort (mock streamFn)

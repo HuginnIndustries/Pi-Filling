@@ -190,21 +190,19 @@ stdin/socket path when Android lands.
 See [`V1_SPEC.md`](./V1_SPEC.md) for the full anti-scope list and
 [`ROADMAP.md`](./ROADMAP.md) for when each of these comes back.
 
-## Where to read code (eventually)
-
-The repo is currently spike-only. As implementation lands, the layout
-will look roughly:
+## Where to read code
 
 ```
-android/                    Layer 1: Android app (Kotlin/Compose)
-  app/
-  proot-bootstrap/          Vendored from Kai's build-proot.sh
 node-wrapper/               Layer 3: Node wrapper around pi-agent-core
-  src/
-  package.json
-spike-host-alpine/          Spike artifacts that prove the building blocks
-  driver*.mjs               (preserved as regression tests)
-docs/                       Long-form docs that don't fit at repo root
+  src/wrapper.mjs           One-process agent + JSONL RPC over stdio
+  test/integration.mjs      Spawn-the-wrapper integration tests
+  DESIGN.md                 Protocol + responsibilities (read first)
+spike-host-alpine/          Stage-0 building-block proofs
+  driver*.mjs               Preserved as regression tests
+  RUNBOOK.md                Step-by-step reproduction
+android/                    Layer 1: Android app (not yet — Stage 1.2+)
+  app/
+  proot-bootstrap/          Will vendor Kai's build-proot.sh
 ```
 
 Layer 2 isn't a directory — it's a runtime artifact built by Layer 1's
