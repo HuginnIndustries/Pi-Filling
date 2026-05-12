@@ -2,6 +2,11 @@ node_modules/
 *.log
 .DS_Store
 
+# proot cross-compile build artifacts and outputs (regenerated from
+# build-proot.sh; don't commit the binaries).
+android/proot-bootstrap/.build-native/
+android/proot-bootstrap/.out/
+
 # Sandbox-only egress proxy CAs (copied at build time when reproducing the
 # spike inside an MITM-proxy environment). Not needed on real machines; kept
 # out of git so we don't leak environment-specific infra. The certs/ directory

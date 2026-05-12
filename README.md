@@ -16,7 +16,8 @@ the Android shell is not yet built.
 |---|---|---|
 | 0 | Reading + host-Alpine spike | ✅ done |
 | 1.1 | Node wrapper (Layer 3) with stdio RPC + memory.md round-trip | ✅ done |
-| 1.2+ | Android shell, key storage, GitHub auth, push | ⏳ next |
+| 1.2a | Vendor `build-proot.sh` from Kai (Layer 2 build pipeline) | ✅ done |
+| 1.2b+ | Android app shell, key storage, GitHub auth, push | ⏳ next |
 | 1.5 | Polish, observability, memory indexing | future |
 | 2 | Phone+server pair with session resume | future |
 
@@ -100,6 +101,12 @@ node-wrapper/               Layer 3 — one-process agent + JSONL RPC over stdio
 ├── src/wrapper.mjs          The wrapper itself (~270 LOC).
 ├── test/integration.mjs     Spawn-the-wrapper integration tests (7 tests).
 └── package.json
+
+android/
+└── proot-bootstrap/         Layer 2 — proot + talloc cross-compile (vendored from Kai).
+    ├── build-proot.sh
+    ├── README.md            Prerequisites, quickstart, troubleshooting.
+    └── VENDORED.md          What we copied, what we changed, when we re-vendor.
 
 spike-host-alpine/          Stage-0 building-block proofs (regression tests).
 ├── Dockerfile

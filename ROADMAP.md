@@ -38,11 +38,16 @@ git repo at a time.
   / `shutdown`) over stdio, `memory.md` injection at startup, real
   edit-and-commit verified by 7 integration tests against Anthropic.
   Protocol contract: [`node-wrapper/DESIGN.md`](./node-wrapper/DESIGN.md).
-- **1.2 Android sandbox port.** Vendor `build-proot.sh` from Kai. Build
-  a Compose-only minimal Android app with Kai's `DaemonService` pattern
-  and `LinuxSandboxManager` equivalent. Bundle Node 22 + git apk
-  installation in the bootstrap. Mount the user's selected directory as
-  the workspace.
+- **1.2 Android sandbox port.** Two sub-steps:
+  - **1.2a** ✅ vendor `build-proot.sh` from Kai into
+    [`android/proot-bootstrap/`](./android/proot-bootstrap/). Syntax
+    + NDK-detection + git-clone-of-proot verified; full cross-compile
+    needs a dev machine with reach to `dl.google.com` and `samba.org`
+    (this dev sandbox blocks both).
+  - **1.2b** build a Compose-only minimal Android app with Kai's
+    `DaemonService` pattern and `LinuxSandboxManager` equivalent.
+    Bundle Node 22 + git apk installation in the bootstrap. Mount the
+    user's selected directory as the workspace.
 - **1.3 Key storage + auth.** App-private storage for the Anthropic API
   key (Keystore-backed where available). Pass to the wrapper at
   start-of-run via a non-env channel.

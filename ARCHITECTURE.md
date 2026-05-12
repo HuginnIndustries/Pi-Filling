@@ -200,9 +200,12 @@ node-wrapper/               Layer 3: Node wrapper around pi-agent-core
 spike-host-alpine/          Stage-0 building-block proofs
   driver*.mjs               Preserved as regression tests
   RUNBOOK.md                Step-by-step reproduction
-android/                    Layer 1: Android app (not yet — Stage 1.2+)
-  app/
-  proot-bootstrap/          Will vendor Kai's build-proot.sh
+android/
+  proot-bootstrap/          Layer 2 build pipeline (vendored from Kai)
+    build-proot.sh          Cross-compile proot + talloc for 3 ABIs
+    README.md               Prerequisites, quickstart, troubleshooting
+    VENDORED.md             What was copied, what was changed
+  app/                      Layer 1: Android app (not yet — Stage 1.2b)
 ```
 
 Layer 2 isn't a directory — it's a runtime artifact built by Layer 1's
