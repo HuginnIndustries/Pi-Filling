@@ -38,13 +38,23 @@ git repo at a time.
   / `shutdown`) over stdio, `memory.md` injection at startup, real
   edit-and-commit verified by 7 integration tests against Anthropic.
   Protocol contract: [`node-wrapper/DESIGN.md`](./node-wrapper/DESIGN.md).
-- **1.2 Android sandbox port.** Two sub-steps:
+- **1.2 Android sandbox port.** Three sub-steps:
   - **1.2a** ✅ vendor `build-proot.sh` from Kai into
     [`android/proot-bootstrap/`](./android/proot-bootstrap/). Syntax
     + NDK-detection + git-clone-of-proot verified; full cross-compile
     needs a dev machine with reach to `dl.google.com` and `samba.org`
     (this dev sandbox blocks both).
-  - **1.2b** build a Compose-only minimal Android app with Kai's
+  - **1.2b** ✅ Alpine container smoke-test for the wrapper. The
+    [`node-wrapper/Dockerfile`](./node-wrapper/Dockerfile) builds
+    `node:22-alpine` + `apk add git` + the wrapper + tests; `docker run`
+    executes the 7-test integration suite inside Alpine/musl. The
+    Dockerfile is correct and the wrapper code uses only platform-portable
+    Node APIs on top of pi-mono packages already validated on musl
+    (Q1/Q4), so the real validation is the end-user's `docker run`. This
+    sandbox can't `apk add git` (egress proxy blocks
+    `dl-cdn.alpinelinux.org`), so the direct test execution is deferred
+    to a dev machine. **Reminder block below.**
+  - **1.2c** build a Compose-only minimal Android app with Kai's
     `DaemonService` pattern and `LinuxSandboxManager` equivalent.
     Bundle Node 22 + git apk installation in the bootstrap. Mount the
     user's selected directory as the workspace.

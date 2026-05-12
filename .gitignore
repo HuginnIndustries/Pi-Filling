@@ -13,3 +13,4 @@ android/proot-bootstrap/.out/
 # itself is preserved via certs/.gitkeep so the Dockerfile build still works
 # on a fresh clone with no certs.
 spike-host-alpine/certs/*.crt
+node-wrapper/certs/*.crt

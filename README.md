@@ -17,7 +17,8 @@ the Android shell is not yet built.
 | 0 | Reading + host-Alpine spike | ✅ done |
 | 1.1 | Node wrapper (Layer 3) with stdio RPC + memory.md round-trip | ✅ done |
 | 1.2a | Vendor `build-proot.sh` from Kai (Layer 2 build pipeline) | ✅ done |
-| 1.2b+ | Android app shell, key storage, GitHub auth, push | ⏳ next |
+| 1.2b | Alpine container Dockerfile for the wrapper + tests | ✅ done (end-user `docker run` to verify) |
+| 1.2c+ | Android app shell, key storage, GitHub auth, push | ⏳ next |
 | 1.5 | Polish, observability, memory indexing | future |
 | 2 | Phone+server pair with session resume | future |
 
