@@ -1,6 +1,19 @@
 # Project Context: Phone-First AI Coding Agent
 
-> Handoff document from brainstorming thread, 2026-05-06. Preserved verbatim for posterity. The authoritative current contract is [V1_SPEC.md](./V1_SPEC.md), which supersedes any conflict with this document (notably the SAF and battery-whitelist inheritance claims, corrected after the CodeCarto read of Kai).
+> Handoff document from brainstorming thread, 2026-05-06. Preserved for posterity. The authoritative current contract is [V1_SPEC.md](./V1_SPEC.md), which supersedes any conflict with this document (notably the SAF and battery-whitelist inheritance claims, corrected after the CodeCarto read of Kai).
+
+## Current status addendum — 2026-05-21
+
+This file is historical context, not the live plan. Since the handoff:
+
+- Track A won: v1 imports `@mariozechner/pi-agent-core` directly and uses `createCodingTools` from `@mariozechner/pi-coding-agent`; Track B (`pi-coding-agent` CLI subprocess) is closed.
+- The Layer 3 Node wrapper exists in `node-wrapper/` and exposes JSONL RPC over stdio (`prompt`, `abort`, `state`, `shutdown`).
+- `node-wrapper/test/smoke.mjs` provides hermetic protocol coverage; `npm test` runs `node --test` and passes 8/8 with no API key because real-provider integration self-skips when `ANTHROPIC_API_KEY` is absent.
+- `node-wrapper/Dockerfile` builds and runs the wrapper suite on Alpine/musl; Docker verification passes 8/8.
+- `spike-host-alpine/` remains as lower-level regression proof: Docker run verifies install/import, `getApiKey` plumbing, and abort behavior on musl; real Anthropic/e2e checks are available when a key is supplied.
+- Still not done: Android app shell, proot bootstrap integration on-device, key storage, GitHub auth/push, and UI/control layer.
+
+The original text below is kept to show where the project started; do not treat its branch names or next-step list as current.
 
 ## What we're building
 

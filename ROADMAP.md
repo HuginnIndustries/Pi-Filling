@@ -35,25 +35,28 @@ git repo at a time.
 
 - **1.1 Wrapper.** ✅ done. See [`node-wrapper/`](./node-wrapper/) — one
   `Agent` instance per process, JSONL RPC (`prompt` / `abort` / `state`
-  / `shutdown`) over stdio, `memory.md` injection at startup, real
-  edit-and-commit verified by 7 integration tests against Anthropic.
-  Protocol contract: [`node-wrapper/DESIGN.md`](./node-wrapper/DESIGN.md).
+  / `shutdown`) over stdio, `memory.md` injection at startup. Tested two
+  ways: hermetic protocol smoke tests (`test/smoke.mjs` — no API key,
+  Docker, or git) and real-Anthropic spawn tests (`test/integration.mjs`
+  — edit + commit, mid-stream abort, `memory.md` injection) that self-skip
+  when `ANTHROPIC_API_KEY` is absent. `npm test` (`node --test`) reports
+  8/8 with no key. Protocol contract:
+  [`node-wrapper/DESIGN.md`](./node-wrapper/DESIGN.md).
 - **1.2 Android sandbox port.** Three sub-steps:
   - **1.2a** ✅ vendor `build-proot.sh` from Kai into
     [`android/proot-bootstrap/`](./android/proot-bootstrap/). Syntax
     + NDK-detection + git-clone-of-proot verified; full cross-compile
     needs a dev machine with reach to `dl.google.com` and `samba.org`
     (this dev sandbox blocks both).
-  - **1.2b** ✅ Alpine container smoke-test for the wrapper. The
+  - **1.2b** ✅ Alpine container for the wrapper. The
     [`node-wrapper/Dockerfile`](./node-wrapper/Dockerfile) builds
-    `node:22-alpine` + `apk add git` + the wrapper + tests; `docker run`
-    executes the 7-test integration suite inside Alpine/musl. The
-    Dockerfile is correct and the wrapper code uses only platform-portable
-    Node APIs on top of pi-mono packages already validated on musl
-    (Q1/Q4), so the real validation is the end-user's `docker run`. This
-    sandbox can't `apk add git` (egress proxy blocks
-    `dl-cdn.alpinelinux.org`), so the direct test execution is deferred
-    to a dev machine. **Reminder block below.**
+    `node:22-alpine` + `apk add git` + the wrapper + tests; its default
+    `CMD` is `node --test`. `docker build` + `docker run` executes the
+    suite inside the same Alpine/musl userland the wrapper will see under
+    Kai's proot, and passes **8/8** with no API key (the hermetic smoke
+    tests; the integration suite self-skips). Forward a key with
+    `docker run -e ANTHROPIC_API_KEY …` to exercise the real-Anthropic
+    integration tests there too.
   - **1.2c** build a Compose-only minimal Android app with Kai's
     `DaemonService` pattern and `LinuxSandboxManager` equivalent.
     Bundle Node 22 + git apk installation in the bootstrap. Mount the

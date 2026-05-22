@@ -195,7 +195,9 @@ See [`V1_SPEC.md`](./V1_SPEC.md) for the full anti-scope list and
 ```
 node-wrapper/               Layer 3: Node wrapper around pi-agent-core
   src/wrapper.mjs           One-process agent + JSONL RPC over stdio
-  test/integration.mjs      Spawn-the-wrapper integration tests
+  test/smoke.mjs            Hermetic protocol tests (no key / Docker / git)
+  test/integration.mjs      Real-Anthropic spawn tests (self-skip without a key)
+  Dockerfile                Alpine/musl image; `docker run` runs the suite
   DESIGN.md                 Protocol + responsibilities (read first)
 spike-host-alpine/          Stage-0 building-block proofs
   driver*.mjs               Preserved as regression tests
@@ -205,7 +207,7 @@ android/
     build-proot.sh          Cross-compile proot + talloc for 3 ABIs
     README.md               Prerequisites, quickstart, troubleshooting
     VENDORED.md             What was copied, what was changed
-  app/                      Layer 1: Android app (not yet — Stage 1.2b)
+  app/                      Layer 1: Android app (not yet — Stage 1.2c)
 ```
 
 Layer 2 isn't a directory — it's a runtime artifact built by Layer 1's

@@ -146,12 +146,13 @@ noise (just log + ignore).
 The wrapper also emits these synthetic events that aren't part of pi-agent-core:
 
 ```jsonc
-{"event": "wrapper_ready", "data": {"protocolVersion": 1, "model": "...", "repoPath": "..."}}
+{"event": "wrapper_ready", "data": {"protocolVersion": 1, "model": "...", "repoPath": "...", "hasMemory": false}}
 ```
 
 Emitted exactly once after the agent is constructed and before any request
 can be processed. Layer 1 should wait for this before sending its first
-`prompt`.
+`prompt`. `hasMemory` reports whether a `memory.md` was found in the repo
+and folded into the system prompt (see "memory.md handling" below).
 
 ```jsonc
 {"event": "wrapper_error", "data": {"phase": "<phase>", "message": "<text>"}}
@@ -231,6 +232,40 @@ On wrapper start, after `chdir(repoPath)`:
   wants to switch repos it spawns a new wrapper.
 - **Custom tool registration over RPC.** Tools are fixed at startup
   (`createCodingTools`). Skill/tool dynamism is post-v1.
+
+## Tests
+
+Two suites live under `test/`, both auto-discovered by `node --test` —
+which is all `npm test` runs.
+
+- **`test/smoke.mjs` — hermetic, seven tests.** Spawns the wrapper with a
+  deliberately fake `ANTHROPIC_API_KEY` and exercises only paths that never
+  touch the network: the `wrapper_ready` handshake (protocol version, repo
+  path, `hasMemory`), the `state` snapshot, `memory.md` detection, rejection
+  of empty-`text` prompts (`bad_params`) and unknown methods
+  (`unknown_method`), an idle `abort` (`aborted: false`), and clean
+  `shutdown` (exit 0). No API key, Docker, or git required, so it runs
+  anywhere.
+- **`test/integration.mjs` — real Anthropic.** Spawns the wrapper and drives
+  a real `claude-haiku-4-5` run: edit + commit, abort mid-stream, `memory.md`
+  injection, and the `busy` rejection. It reads `ANTHROPIC_API_KEY` from the
+  env and **self-skips (exits 0) when it's absent**, so the default
+  `npm test` stays free and offline.
+
+With no key set, `node --test` reports **8/8 passing** — the seven smoke
+tests plus the integration file, which self-skips. Supply a key
+(`ANTHROPIC_API_KEY=… npm test`) to additionally run the integration suite
+(~$0.02–$0.05 on `claude-haiku-4-5`).
+
+### On Alpine/musl
+
+[`Dockerfile`](./Dockerfile) builds a `node:22-alpine` image (`apk add git`,
+`npm install --omit=dev` against the committed `package-lock.json`, then the
+wrapper and tests) whose default `CMD` is `node --test`. `docker build` +
+`docker run` executes the suite inside the same musl userland the wrapper
+will see under Kai's proot, and passes **8/8** with no key. Forward a key
+with `docker run -e ANTHROPIC_API_KEY …` to exercise the integration suite
+there too.
 
 ## Reference
 

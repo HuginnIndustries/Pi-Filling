@@ -124,8 +124,10 @@ The agent took the obvious shape: `read` → `edit` → `bash`. 4 assistant turn
 
 - `spike-host-alpine/Dockerfile` — Alpine + Node 22 + sandbox CA workaround.
 - `spike-host-alpine/package.json` — pins `pi-agent-core`, `pi-ai`, `pi-coding-agent` `^0.73.0`.
+- `spike-host-alpine/package-lock.json` — locks the resolved dependency tree so `npm install` in the image is reproducible.
 - `spike-host-alpine/driver.mjs` — Q1, Q2, Q3 (mock streamFn). Hermetic, no API key needed.
 - `spike-host-alpine/driver-extras.mjs` — Q4 (`createCodingTools` on musl) and Q3-real (Anthropic streaming + abort). Skips Q3-real if `ANTHROPIC_API_KEY` not in env.
+- `spike-host-alpine/driver-e2e.mjs` — E2E: real agent reads a README, edits it, and `git commit`s. Requires `ANTHROPIC_API_KEY`.
 - `spike-host-alpine/certs/` — gitignored. To reproduce inside this dev sandbox, run `cp /usr/local/share/ca-certificates/*.crt spike-host-alpine/certs/` before `docker build`. On a real Android device or any environment without an egress TLS-inspection proxy, this directory is unnecessary — delete the `COPY certs/*.crt …` block from the Dockerfile.
 
 ## Reproduce

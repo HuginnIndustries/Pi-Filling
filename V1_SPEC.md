@@ -1,6 +1,6 @@
 # v1 Spec — phone-first AI coding agent
 
-**Status:** locked, post-spike. Last revision: 2026-05-09.
+**Status:** locked, post-spike; wrapper Docker verification complete. Last revision: 2026-05-21.
 **Working branch:** `claude/spike-pi-agent-android-NugAe` (across all participating repos).
 **Project name:** none yet. Branding emerges from building. Repo is `Pi-Filling` as a working title.
 
@@ -29,7 +29,7 @@ Both bets survived the spike intact and are now baseline.
 > repository, types `"summarize the last three commits in CHANGELOG.md
 > and push the result"`, and within a minute the change is in the remote.
 
-The host-Alpine spike has proven the agent half of this end-to-end (read → edit → commit, no push, against real Anthropic). The remaining work is the Android shell, key storage, GitHub auth, and the push step.
+The host-Alpine spike and the wrapper Docker suite have proven the agent half of this end-to-end (read → edit → commit, no push, against real Anthropic; plus hermetic wrapper protocol tests on Alpine/musl). The remaining work is the Android shell/proot integration, key storage, GitHub auth, UI/control layer, and the push step.
 
 ---
 
@@ -116,6 +116,20 @@ The host-Alpine spike answered every question the spec needed answered to lock T
 | E2E — agent reads README, edits, `git commit` | ✅ 4 turns, 3 tool calls (read → edit → bash), 5.2 s, `stopReason: "stop"` |
 
 The "Track A vs Track B vs `createAgentSession()`" decision is **closed in favor of Track A + `createCodingTools`**. See `SPIKE_NOTES.md` "Verdict" section.
+
+## Stage 1.1/1.2b wrapper verification — results
+
+The Layer 3 wrapper now has repeatable tests at two levels:
+
+| Check | Result |
+|---|---|
+| `npm test` in `node-wrapper/` | ✅ `node --test` reports 8/8 with no key; real-provider integration self-skips when `ANTHROPIC_API_KEY` is absent |
+| `node-wrapper/test/smoke.mjs` | ✅ Hermetic protocol coverage: `wrapper_ready`, `hasMemory`, `state`, bad params, unknown methods, idle abort, clean shutdown |
+| `node-wrapper/Dockerfile` | ✅ Builds on `node:22-alpine`, installs git, runs `node --test` by default |
+| Wrapper Docker run | ✅ 8/8 passing inside Alpine/musl with no key; pass a key to additionally run real Anthropic integration |
+| `spike-host-alpine` Docker run | ✅ Q1 install/import, Q2 `getApiKey`/API-key plumbing, Q3 abort signal behavior all pass |
+
+This verifies the wrapper is testable and portable to Alpine/musl. It does **not** yet prove the Android app can bootstrap proot, install Node/git, store keys, or drive the wrapper from a UI.
 
 ### Implementation notes from the spike
 

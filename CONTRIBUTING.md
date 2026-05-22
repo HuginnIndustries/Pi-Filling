@@ -9,11 +9,12 @@ In the meantime, the most useful contributions are:
 
 - **Issues.** Bug reports, design questions, scope challenges, comparisons
   to prior art. File freely.
-- **Reproductions.** If you run the spike from
-  [`spike-host-alpine/RUNBOOK.md`](./spike-host-alpine/RUNBOOK.md) on a
-  device or environment we haven't tested, the JSON output of `driver.mjs`
-  + `driver-extras.mjs` + `driver-e2e.mjs` is genuinely useful data. Open
-  an issue with the output and your platform details.
+- **Reproductions.** If you run the wrapper suite from `node-wrapper/` or
+  the spike from [`spike-host-alpine/RUNBOOK.md`](./spike-host-alpine/RUNBOOK.md)
+  on a device or environment we haven't tested, the test output is genuinely
+  useful data. For the wrapper, include `npm test`, `docker build`, and
+  `docker run` output. For the spike, include `driver.mjs`,
+  `driver-extras.mjs`, and `driver-e2e.mjs` output where applicable.
 - **Discussion of the v1 scope.** Read [`V1_SPEC.md`](./V1_SPEC.md) and
   push back. Items in "Scope — Out" are deliberately deferred; if you
   think one is mis-categorized, say so.

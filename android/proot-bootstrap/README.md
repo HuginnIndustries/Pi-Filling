@@ -33,7 +33,7 @@ README, with one subdirectory per ABI:
 ```
 
 These get bundled into the Android APK under `app/src/main/jniLibs/<abi>/`
-once Stage 1.2 (the Android app skeleton) lands. The Android runtime
+once Stage 1.2c (the Android app skeleton) lands. The Android runtime
 unpacks them into `applicationInfo.nativeLibraryDir/` automatically; our
 sandbox manager invokes them from there.
 
@@ -92,7 +92,7 @@ Each ABI gets four artifacts:
 ## How this layer plugs into the rest of the project
 
 ```
-Stage 1.2 (Android app, not yet built):
+Stage 1.2c (Android app, not yet built):
   app/src/main/jniLibs/<abi>/lib*.so       ← copied from .out/<abi>/
   ↓
   AndroidApp.context.applicationInfo.nativeLibraryDir
@@ -105,9 +105,9 @@ Stage 1.2 (Android app, not yet built):
   via JSONL on stdio.
 ```
 
-When Stage 1.2 lands, the Android app's gradle will either invoke
+When Stage 1.2c lands, the Android app's gradle will either invoke
 `build-proot.sh` directly as a pre-build step, or expect the `.out/`
-artifacts to already exist. (Final decision is a Stage 1.2 detail.)
+artifacts to already exist. (Final decision is a Stage 1.2c detail.)
 
 ## What's verified vs. what isn't, as of this commit
 
@@ -139,7 +139,7 @@ artifacts to already exist. (Final decision is a Stage 1.2 detail.)
 - [`VENDORED.md`](./VENDORED.md) — what was vendored, with which changes.
 - [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md) — how Layer 2 fits
   into the overall design.
-- [`../../ROADMAP.md`](../../ROADMAP.md) — Stage 1.2 timeline.
+- [`../../ROADMAP.md`](../../ROADMAP.md) — Stage 1.2c timeline.
 - Kai's source: https://github.com/TheAmericanMaker/Kai
 - proot upstream: https://github.com/termux/proot
 - talloc: https://talloc.samba.org/

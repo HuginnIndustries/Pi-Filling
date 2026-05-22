@@ -16,6 +16,12 @@ Linux on musl. Results documented in [`../SPIKE_NOTES.md`](../SPIKE_NOTES.md).
 
 You don't need Node, npm, or Alpine on your host — Docker handles all of it.
 
+> **Running from WSL?** If `docker` in your WSL shell hits permission errors
+> talking to Docker Desktop's engine, call the Windows binary directly:
+> `"/mnt/c/Program Files/Docker/Docker/resources/bin/docker.exe" build …`
+> (and likewise for `docker run …`). Everything else in this runbook is
+> unchanged.
+
 ## 2. Clone and enter
 
 ```sh
@@ -25,8 +31,9 @@ git checkout claude/spike-pi-agent-android-NugAe
 cd spike-host-alpine
 ```
 
-You should see `Dockerfile`, `package.json`, `driver.mjs`, `driver-extras.mjs`,
-and an empty `certs/` directory (with just a `.gitkeep`).
+You should see `Dockerfile`, `package.json`, `package-lock.json`,
+`driver.mjs`, `driver-extras.mjs`, `driver-e2e.mjs`, and an empty `certs/`
+directory (with just a `.gitkeep`).
 
 ## 3. Build the image
 
@@ -37,10 +44,13 @@ docker build -t pi-filling-spike:alpine .
 What happens:
 - Pulls `node:22-alpine` (~80 MB).
 - The CA-cert step is a no-op unless you've dropped `.crt` files into `certs/`
-  (only relevant for corporate-proxy environments — see §7).
-- Runs `npm install --omit=dev`. Pulls `@mariozechner/pi-agent-core`,
-  `@mariozechner/pi-ai`, `@mariozechner/pi-coding-agent` and dependencies.
-- Copies the two driver scripts.
+  (only relevant for corporate-proxy environments — see §8).
+- Runs `npm install --omit=dev` against the committed `package-lock.json`,
+  so the dependency tree is pinned and the install is reproducible. Pulls
+  `@mariozechner/pi-agent-core`, `@mariozechner/pi-ai`,
+  `@mariozechner/pi-coding-agent` and dependencies.
+- Copies the three driver scripts (`driver.mjs`, `driver-extras.mjs`,
+  `driver-e2e.mjs`).
 
 Total build time on a typical laptop: 30–60 s (mostly the npm install).
 Image size: ~270 MB.

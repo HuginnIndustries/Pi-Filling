@@ -17,7 +17,7 @@ the Android shell is not yet built.
 | 0 | Reading + host-Alpine spike | ✅ done |
 | 1.1 | Node wrapper (Layer 3) with stdio RPC + memory.md round-trip | ✅ done |
 | 1.2a | Vendor `build-proot.sh` from Kai (Layer 2 build pipeline) | ✅ done |
-| 1.2b | Alpine container Dockerfile for the wrapper + tests | ✅ done (end-user `docker run` to verify) |
+| 1.2b | Alpine container Dockerfile for the wrapper + tests | ✅ done (builds + runs 8/8 on Alpine/musl) |
 | 1.2c+ | Android app shell, key storage, GitHub auth, push | ⏳ next |
 | 1.5 | Polish, observability, memory indexing | future |
 | 2 | Phone+server pair with session resume | future |
@@ -56,17 +56,39 @@ Each layer has a narrow contract with the next. If you want the full
 walkthrough — what each layer owns, what it doesn't, how cancellation and
 auth flow — read [`ARCHITECTURE.md`](./ARCHITECTURE.md).
 
-## Quickstart — try the spike
+## Quickstart — try the verified checks
 
 The agent loop, the tool stack, and the abort-mid-stream behavior are
-already verified by a self-contained Docker spike. You can reproduce all
-five checks plus a real end-to-end run on your own machine.
+verified by self-contained Docker checks. Start with the wrapper
+suite (the actual Layer 3 process the Android app will drive), then run the
+older spike regressions if you want the lower-level pi-mono proofs.
+
+### Wrapper smoke tests
 
 ```sh
 git clone https://github.com/HuginnIndustries/Pi-Filling.git
 cd Pi-Filling
 git checkout claude/spike-pi-agent-android-NugAe   # main isn't open yet
-cd spike-host-alpine
+
+cd node-wrapper
+npm test                                           # 8/8, offline when no key is set
+docker build -t pi-filling-node-wrapper .
+docker run --rm pi-filling-node-wrapper            # 8/8 on Alpine/musl
+```
+
+`npm test` and the Docker image both run `node --test`. With no
+`ANTHROPIC_API_KEY`, the hermetic smoke tests run and the real-provider
+integration file self-skips. Forward a key with `docker run -e
+ANTHROPIC_API_KEY …` to exercise the real Anthropic tests too.
+
+If you're running from WSL and Docker Desktop is up but `/var/run/docker.sock`
+is permission-denied, call Docker Desktop's Windows CLI directly:
+`"/mnt/c/Program Files/Docker/Docker/resources/bin/docker.exe" build …`.
+
+### Host-Alpine spike regressions
+
+```sh
+cd ../spike-host-alpine
 docker build -t pi-filling-spike:alpine .
 
 # Mock-streamFn checks (no API key, no cost):
@@ -100,8 +122,11 @@ LICENSE                     MIT.
 node-wrapper/               Layer 3 — one-process agent + JSONL RPC over stdio.
 ├── DESIGN.md                Protocol contract (read before writing a Layer 1 client).
 ├── src/wrapper.mjs          The wrapper itself (~270 LOC).
-├── test/integration.mjs     Spawn-the-wrapper integration tests (7 tests).
-└── package.json
+├── test/smoke.mjs           Hermetic protocol tests (no API key / Docker / git).
+├── test/integration.mjs     Real-Anthropic spawn tests (self-skip without a key).
+├── Dockerfile               Alpine/musl image; `docker run` executes the suite.
+├── package.json
+└── package-lock.json        Pinned deps for reproducible installs.
 
 android/
 └── proot-bootstrap/         Layer 2 — proot + talloc cross-compile (vendored from Kai).
@@ -112,6 +137,7 @@ android/
 spike-host-alpine/          Stage-0 building-block proofs (regression tests).
 ├── Dockerfile
 ├── package.json
+├── package-lock.json        Pinned deps for reproducible installs.
 ├── driver.mjs               Q1 install + Q2 auth + Q3 abort (mock streamFn)
 ├── driver-extras.mjs        Q4 createCodingTools + Q3-real Anthropic abort
 ├── driver-e2e.mjs           Real agent: read README → edit → git commit
