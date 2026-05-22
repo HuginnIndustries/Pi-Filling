@@ -6,7 +6,7 @@
   "description": "Node wrapper around @mariozechner/pi-agent-core. Owns one Agent instance for the lifetime of a process; exposes a small JSONL RPC surface over stdio so Layer 1 (Android app) can drive it. See DESIGN.md.",
   "main": "src/wrapper.mjs",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test"
   },
   "dependencies": {
     "@mariozechner/pi-agent-core": "^0.73.0",

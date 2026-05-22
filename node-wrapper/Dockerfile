@@ -49,7 +49,10 @@ RUN npm install --omit=dev
 COPY src ./src
 COPY test ./test
 
-# Default: run the integration tests. Requires ANTHROPIC_API_KEY to be
-# forwarded via `docker run -e ANTHROPIC_API_KEY ...`. Tests self-skip
-# if the key is absent.
-CMD ["node", "--test", "test/integration.mjs"]
+# Default: run the full test suite via Node's test-runner auto-discovery.
+# The hermetic smoke tests (test/smoke.mjs) always run and verify the wrapper
+# boots and speaks its protocol on Alpine/musl with no API key. The integration
+# tests (test/integration.mjs) additionally exercise a real Anthropic call when
+# ANTHROPIC_API_KEY is forwarded via `docker run -e ANTHROPIC_API_KEY ...`, and
+# self-skip when it's absent.
+CMD ["node", "--test"]
