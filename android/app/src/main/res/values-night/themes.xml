@@ -1,0 +1,5 @@
+<resources>
+    <!-- Dark counterpart to the base theme; avoids a light flash before Compose
+         draws in dark mode. Compose (PiFillingTheme) drives the real colors. -->
+    <style name="Theme.PiFilling" parent="android:Theme.Material.NoActionBar" />
+</resources>

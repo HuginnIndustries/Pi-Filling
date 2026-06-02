@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- The Linux sandbox (rootfs, user repo clones) lives under app-private
+         filesDir/linux-sandbox. Expose nothing by default; add entries here
+         only when a feature needs to share a file out via FileProvider. -->
+    <files-path
+        name="sandbox"
+        path="linux-sandbox/" />
+</paths>

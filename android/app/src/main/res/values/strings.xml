@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Pi-Filling</string>
+
+    <!-- Foreground service notification -->
+    <string name="daemon_channel_name">Sandbox daemon</string>
+    <string name="daemon_channel_description">Keeps the Linux sandbox and coding agent alive while a task is running.</string>
+    <string name="daemon_notification_title">Pi-Filling is running</string>
+    <string name="daemon_notification_text">Agent sandbox active</string>
+</resources>

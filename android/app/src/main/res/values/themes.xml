@@ -1,0 +1,5 @@
+<resources>
+    <!-- Compose drives the UI; this base theme only needs to be a Material 3
+         no-action-bar shell with edge-to-edge friendly defaults. -->
+    <style name="Theme.PiFilling" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

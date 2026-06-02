@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ backup/transfer rules. Mirror backup_rules.xml: never export
+     the encrypted key prefs or the sandbox in cloud backup or device-to-device
+     transfer. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="pifilling_secure_prefs.xml" />
+        <exclude domain="file" path="linux-sandbox/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="pifilling_secure_prefs.xml" />
+        <exclude domain="file" path="linux-sandbox/" />
+    </device-transfer>
+</data-extraction-rules>

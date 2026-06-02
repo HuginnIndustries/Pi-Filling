@@ -1,0 +1,17 @@
+# Gradle / Android build outputs
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+.kotlin/
+
+# The Layer 3 wrapper is copied from ../node-wrapper into a generated build dir
+# (copyWrapperAssets task) — under build/, already ignored. This guards against a
+# stray manual copy into the source tree.
+app/src/main/assets/wrapper/
+
+# Keystores / signing material — never commit
+*.jks
+*.keystore
+keystore.properties
