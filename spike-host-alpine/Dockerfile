@@ -36,8 +36,9 @@ ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/spike-extra-cas.crt
 RUN apk add --no-cache git
 
 WORKDIR /spike
-COPY package.json package-lock.json* ./
-RUN npm install --omit=dev
+# npm ci for a reproducible, integrity-checked install from the committed lock.
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts
 
 COPY driver.mjs driver-extras.mjs driver-e2e.mjs ./
 CMD ["node", "driver.mjs"]

@@ -43,8 +43,12 @@ ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/wrapper-extra-cas.crt
 RUN apk add --no-cache git
 
 WORKDIR /wrapper
-COPY package.json package-lock.json* ./
-RUN npm install --omit=dev
+# `npm ci` (not install) installs exactly the committed, integrity-checked lock
+# tree and fails if package.json and the lockfile disagree — reproducible builds.
+# --ignore-scripts blocks lifecycle scripts from the large transitive provider
+# SDK tree; none of our deps need a build step.
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts
 
 COPY src ./src
 COPY test ./test

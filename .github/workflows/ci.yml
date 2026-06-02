@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  wrapper-lint-test:
+    name: node-wrapper · lint + hermetic tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: node-wrapper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: node-wrapper/package-lock.json
+      - name: Install (locked)
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Format check
+        run: npm run format
+      - name: Hermetic tests (no API key — integration self-skips)
+        run: npm test
+        env:
+          WRAPPER_LOG_LEVEL: silent
+
+  wrapper-audit:
+    name: node-wrapper · dependency audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: node-wrapper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: node-wrapper/package-lock.json
+      # npm ci already fails if package.json and the lockfile disagree, so this
+      # doubles as a lockfile-in-sync check.
+      - run: npm ci
+      - name: Audit production deps (fail on high+)
+        run: npm audit --omit=dev --audit-level=high
+
+  wrapper-docker:
+    name: node-wrapper · Alpine/musl image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t pi-filling-node-wrapper ./node-wrapper
+      - name: Run suite inside Alpine/musl (no key)
+        run: docker run --rm pi-filling-node-wrapper
+
+  shell-lint:
+    name: proot-bootstrap · shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax check
+        run: bash -n android/proot-bootstrap/build-proot.sh
+      - name: ShellCheck
+        run: shellcheck -S warning android/proot-bootstrap/build-proot.sh || true

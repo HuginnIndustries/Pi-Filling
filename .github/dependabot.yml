@@ -1,0 +1,37 @@
+version: 2
+updates:
+  # Layer 3 wrapper npm deps. Grouped so the @earendil-works trio (and dev
+  # tooling) bump together in one reviewable PR. Pinned exact versions mean
+  # every bump is deliberate and CI-gated.
+  - package-ecosystem: npm
+    directory: /node-wrapper
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      pi-mono:
+        patterns:
+          - "@earendil-works/*"
+      dev-tooling:
+        patterns:
+          - "eslint*"
+          - "@eslint/*"
+          - "prettier"
+          - "globals"
+
+  # Spike regression harness — keep it tracking the same agent stack.
+  - package-ecosystem: npm
+    directory: /spike-host-alpine
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      pi-mono:
+        patterns:
+          - "@earendil-works/*"
+
+  # GitHub Actions versions.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
