@@ -47,9 +47,9 @@ the dumb solution; we'll evolve it when it actually breaks.
 │  - User's git clones live in /root              │
 ├─────────────────────────────────────────────────┤
 │  Node agent runtime                             │   Layer 3
-│  - @mariozechner/pi-agent-core (Agent class)    │   depend, don't fork
-│  - @mariozechner/pi-ai (Anthropic SDK)          │
-│  - @mariozechner/pi-coding-agent                │
+│  - @earendil-works/pi-agent-core (Agent class)  │   depend, don't fork
+│  - @earendil-works/pi-ai (Anthropic SDK)        │
+│  - @earendil-works/pi-coding-agent              │
 │      → createCodingTools(cwd)                   │
 │        → read, write, edit, bash                │
 │  - Our wrapper: socket/HTTP listener,           │   ours
@@ -134,9 +134,9 @@ the index would be derived from `memory.md`, not the source of truth.
 |---|---|---|
 | Android sandbox bootstrap | Kai (port the patterns) | Already solved; Apache-2.0 |
 | Linux userland | Alpine 3.21 + Node 22 + git via apk | Lightweight; matches Kai |
-| Agent loop | `@mariozechner/pi-agent-core` | npm dep; turn-by-turn drivable; clean abort plumbing |
-| LLM client | `@mariozechner/pi-ai` | npm dep; bundled Anthropic SDK; eager-loads other providers (footprint cost we accept for v1) |
-| Tools (read/write/edit/bash) | `@mariozechner/pi-coding-agent` `createCodingTools` | npm dep; saves us implementing 4 tools; clean `AgentTool[]` return |
+| Agent loop | `@earendil-works/pi-agent-core` | npm dep; turn-by-turn drivable; clean abort plumbing. (Maintained successor to the deprecated `@mariozechner/*`.) |
+| LLM client | `@earendil-works/pi-ai` | npm dep; bundled Anthropic SDK; eager-loads other providers (footprint cost we accept for v1) |
+| Tools (read/write/edit/bash) | `@earendil-works/pi-coding-agent` `createCodingTools` | npm dep; saves us implementing 4 tools; clean `AgentTool[]` return |
 | Wrapper, memory.md, RPC, key storage, UI | **Ours** | The actual product surface |
 
 We **do not fork** any of the above — we depend via npm or port patterns.

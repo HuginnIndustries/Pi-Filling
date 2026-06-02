@@ -45,9 +45,10 @@ The host-Alpine spike and the wrapper Docker suite have proven the agent half of
 
 ### Agent runtime (locked after spike)
 
-- **`@mariozechner/pi-agent-core`** — agent loop, event subscription, `AbortSignal` plumbing.
-- **`@mariozechner/pi-ai`** — LLM client. Anthropic provider used; other provider SDKs are bundled but unused.
-- **`@mariozechner/pi-coding-agent`** — `createCodingTools(cwd)` returns the `read`, `write`, `edit`, `bash` tools as plain `AgentTool[]`. We do not use `createAgentSession()` (its `SessionManager` / `AuthStorage` / `ModelRegistry` are too opinionated for our wrapper).
+- **`@earendil-works/pi-agent-core`** — agent loop, event subscription, `AbortSignal` plumbing.
+- **`@earendil-works/pi-ai`** — LLM client. Anthropic provider used; other provider SDKs are bundled but unused.
+- **`@earendil-works/pi-coding-agent`** — `createCodingTools(cwd)` returns the `read`, `write`, `edit`, `bash` tools as plain `AgentTool[]`. We do not use `createAgentSession()` (its `SessionManager` / `AuthStorage` / `ModelRegistry` are too opinionated for our wrapper).
+- These are the maintained successor to the `@mariozechner/*` packages, which upstream deprecated; pinned to exact `0.78.0`. See the decision log and CHANGELOG.
 - **All three are npm dependencies. We do not fork pi-mono.**
 
 ### Single-provider posture
@@ -167,6 +168,8 @@ All other prior questions are resolved (see decision log below).
 | 2026-05-09 | Inherit Kai's SAF persistence | No (Kai doesn't ship it; v1 doesn't add it) |
 | 2026-05-09 | Inherit Kai's battery whitelist prompt | No (Kai doesn't ship it; v1 doesn't add it) |
 | 2026-05-09 | License | MIT |
+| 2026-06-02 | `@mariozechner/*` agent stack deprecated upstream | Migrate to maintained `@earendil-works/*` (pinned `0.78.0`); re-verified Q1–Q3 + wrapper suite. See CHANGELOG. |
+| 2026-06-02 | API key via env var (spike expedient) | Keep env *delivery* at spawn but scrub from `process.env` immediately after capture so it can't reach the `bash` tool or pi-ai's env fallback; non-env handshake still the longer-term goal. |
 
 ---
 

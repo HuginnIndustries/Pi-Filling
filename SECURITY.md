@@ -26,12 +26,39 @@ Reports relevant to this repository:
 
 Out of scope (please report upstream):
 
-- `@mariozechner/pi-agent-core`, `@mariozechner/pi-ai`,
-  `@mariozechner/pi-coding-agent` — report at https://github.com/badlogic/pi-mono.
+- `@earendil-works/pi-agent-core`, `@earendil-works/pi-ai`,
+  `@earendil-works/pi-coding-agent` (the maintained successor to the deprecated
+  `@mariozechner/*` packages) — report to the pi-mono upstream.
 - Anthropic SDK / API — report at https://www.anthropic.com/security.
 - Kai Android sandbox — report at https://github.com/TheAmericanMaker/Kai.
 - The Anthropic models themselves — report via Anthropic's responsible
   disclosure channels.
+
+## Current key handling and known limitations
+
+These are the security-relevant realities of the code as it ships today (pre-1.0),
+stated plainly so operators aren't surprised:
+
+- **API key delivery.** Layer 1 passes the Anthropic key to the wrapper via the
+  `ANTHROPIC_API_KEY` environment variable at process spawn. The wrapper captures
+  it into a closure on startup and then **deletes it from `process.env`** (along
+  with `ANTHROPIC_OAUTH_TOKEN`), so it does not propagate to the agent's `bash`
+  tool children or to pi-ai's env-var auth fallback. The key is never written to
+  disk by the wrapper. On Android the key is stored encrypted at rest via a
+  hardware-bound AndroidKeyStore AES-256-GCM key (`SecureKeyStore`). The
+  spec's longer-term goal is a non-env key handshake (stdin/socket); the env path
+  with immediate scrub is the current state.
+- **The `bash` tool runs arbitrary shell.** The agent's `bash` tool executes
+  model-chosen commands with no allowlist at the wrapper layer. **proot is an
+  isolation/compat layer, not a security sandbox** — it does not contain a
+  determined attacker. Containment for v1 relies on Android app-private storage
+  and the OS process boundary, not on confining the agent. Treat any repo you
+  point the agent at, and any `memory.md` it loads, as code you are choosing to
+  run.
+- **`memory.md` is untrusted input.** It is git-synced across devices, so the
+  wrapper folds it into the system prompt framed as untrusted reference data
+  (not instructions) with delimiter-breakout neutralization. This reduces, but
+  does not eliminate, prompt-injection risk from a compromised synced file.
 
 ## Cryptographic material in the repo
 

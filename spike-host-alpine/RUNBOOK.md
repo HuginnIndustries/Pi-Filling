@@ -45,10 +45,10 @@ What happens:
 - Pulls `node:22-alpine` (~80 MB).
 - The CA-cert step is a no-op unless you've dropped `.crt` files into `certs/`
   (only relevant for corporate-proxy environments — see §8).
-- Runs `npm install --omit=dev` against the committed `package-lock.json`,
-  so the dependency tree is pinned and the install is reproducible. Pulls
-  `@mariozechner/pi-agent-core`, `@mariozechner/pi-ai`,
-  `@mariozechner/pi-coding-agent` and dependencies.
+- Runs `npm ci --omit=dev --ignore-scripts` against the committed
+  `package-lock.json`, so the dependency tree is pinned and the install is
+  reproducible. Pulls `@earendil-works/pi-agent-core`, `@earendil-works/pi-ai`,
+  `@earendil-works/pi-coding-agent` and dependencies.
 - Copies the three driver scripts (`driver.mjs`, `driver-extras.mjs`,
   `driver-e2e.mjs`).
 

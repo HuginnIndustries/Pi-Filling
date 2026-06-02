@@ -57,10 +57,14 @@ git repo at a time.
     tests; the integration suite self-skips). Forward a key with
     `docker run -e ANTHROPIC_API_KEY …` to exercise the real-Anthropic
     integration tests there too.
-  - **1.2c** build a Compose-only minimal Android app with Kai's
-    `DaemonService` pattern and `LinuxSandboxManager` equivalent.
-    Bundle Node 22 + git apk installation in the bootstrap. Mount the
-    user's selected directory as the workspace.
+  - **1.2c** 🟡 scaffolded. A Compose Android app
+    ([`android/app/`](./android/)) ports Kai's `DaemonService`,
+    `LinuxSandboxManager`/`ProotExecutor`/`RootfsDownloader` (Alpine
+    3.21.3 + `apk add nodejs npm git`), AndroidKeyStore key storage, and a
+    `WrapperClient` speaking the Layer 3 stdio protocol. **Not yet built or
+    run on a device** (no JDK/Gradle in the authoring env); first on-device
+    build is the next concrete step. See
+    [`android/README.md`](./android/README.md).
 - **1.3 Key storage + auth.** App-private storage for the Anthropic API
   key (Keystore-backed where available). Pass to the wrapper at
   start-of-run via a non-env channel.
