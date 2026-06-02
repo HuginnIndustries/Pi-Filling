@@ -1,28 +1,23 @@
-// Integration test for node-wrapper. Spawns the wrapper as a subprocess,
-// drives it via stdio, and verifies behavior against a real Anthropic call.
+// Integration tests for node-wrapper. Spawns the wrapper as a subprocess via the
+// shared harness, drives it over stdio, and verifies behavior against a real
+// Anthropic call.
 //
-// Reads ANTHROPIC_API_KEY from env. If not set, the test skips itself with
-// a clear message rather than failing — same convention as the spike's
-// driver-extras.mjs.
+// Reads ANTHROPIC_API_KEY from env. If not set, the test skips itself with a
+// clear message rather than failing — same convention as the spike drivers.
 //
 // Usage:
-//   ANTHROPIC_API_KEY=... node test/integration.mjs
-// Or via npm:
-//   npm test
+//   ANTHROPIC_API_KEY=... node test/integration.mjs   (or: npm test)
 //
-// Cost on a successful run: ~$0.02-$0.05 on claude-haiku-4-5.
+// Cost on a successful run: ~$0.02-$0.10 on claude-haiku-4-5.
 
-import { spawn } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { execSync } from "node:child_process";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const WRAPPER = resolve(__dirname, "..", "src", "wrapper.mjs");
+import { WrapperHarness } from "./harness.mjs";
 
 const apiKey = process.env.ANTHROPIC_API_KEY;
 if (!apiKey) {
@@ -30,7 +25,15 @@ if (!apiKey) {
   process.exit(0);
 }
 
-// ---- helpers --------------------------------------------------------------
+// Drive the wrapper with the REAL key (withKey:false stops the harness injecting
+// its fake one; the explicit env entry supplies the real key) and verbose logs.
+function harnessFor(repo) {
+  return new WrapperHarness(repo, {
+    withKey: false,
+    logLevel: "info",
+    env: { ANTHROPIC_API_KEY: apiKey },
+  });
+}
 
 function makeRepo() {
   const path = mkdtempSync(join(tmpdir(), "pi-wrapper-test-"));
@@ -46,108 +49,9 @@ function makeRepo() {
   return path;
 }
 
-class WrapperHarness {
-  constructor(repoPath, env = {}) {
-    this.proc = spawn(process.execPath, [WRAPPER, "--repo", repoPath], {
-      env: { ...process.env, WRAPPER_LOG_LEVEL: "info", ...env },
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    this.repoPath = repoPath;
-    this.outBuf = "";
-    this.errBuf = "";
-    this.events = [];
-    this.responsesById = new Map();
-    this.eventListeners = new Set();
-    this.nextId = 1;
-    this.exitCode = null;
-    this.exitPromise = new Promise((resolve) => {
-      this.proc.on("exit", (code) => {
-        this.exitCode = code;
-        resolve(code);
-      });
-    });
-    this.proc.stdout.setEncoding("utf8");
-    this.proc.stdout.on("data", (chunk) => this._consumeStdout(chunk));
-    this.proc.stderr.setEncoding("utf8");
-    this.proc.stderr.on("data", (chunk) => {
-      this.errBuf += chunk;
-    });
-  }
-
-  _consumeStdout(chunk) {
-    this.outBuf += chunk;
-    let nl;
-    while ((nl = this.outBuf.indexOf("\n")) !== -1) {
-      const line = this.outBuf.slice(0, nl);
-      this.outBuf = this.outBuf.slice(nl + 1);
-      if (line.length === 0) continue;
-      let msg;
-      try { msg = JSON.parse(line); }
-      catch { continue; }
-      if (msg.event !== undefined) {
-        this.events.push(msg);
-        for (const fn of this.eventListeners) fn(msg);
-      } else if (msg.id !== undefined) {
-        this.responsesById.set(msg.id, msg);
-      }
-    }
-  }
-
-  onEvent(fn) {
-    this.eventListeners.add(fn);
-    return () => this.eventListeners.delete(fn);
-  }
-
-  async waitForEvent(predicate, { timeoutMs = 30_000 } = {}) {
-    const existing = this.events.find(predicate);
-    if (existing) return existing;
-    return await new Promise((resolveFn, rejectFn) => {
-      const timer = setTimeout(() => {
-        unlisten();
-        rejectFn(new Error(`waitForEvent timed out after ${timeoutMs}ms`));
-      }, timeoutMs);
-      const unlisten = this.onEvent((evt) => {
-        if (predicate(evt)) {
-          clearTimeout(timer);
-          unlisten();
-          resolveFn(evt);
-        }
-      });
-    });
-  }
-
-  async call(method, params) {
-    const id = this.nextId++;
-    const body = `${JSON.stringify({ id, method, params })}\n`;
-    this.proc.stdin.write(body);
-    return await this._waitForResponse(id);
-  }
-
-  async _waitForResponse(id, timeoutMs = 5_000) {
-    const start = Date.now();
-    while (!this.responsesById.has(id)) {
-      if (Date.now() - start > timeoutMs) {
-        throw new Error(`response timeout for id=${id}`);
-      }
-      await new Promise((r) => setTimeout(r, 25));
-    }
-    return this.responsesById.get(id);
-  }
-
-  closeStdin() {
-    this.proc.stdin.end();
-  }
-
-  async waitForExit() {
-    return this.exitPromise;
-  }
-}
-
-// ---- tests ----------------------------------------------------------------
-
 test("wrapper emits wrapper_ready before accepting requests", async () => {
   const repo = makeRepo();
-  const h = new WrapperHarness(repo);
+  const h = harnessFor(repo);
   try {
     const ready = await h.waitForEvent((e) => e.event === "wrapper_ready");
     assert.equal(ready.data.protocolVersion, 1);
@@ -155,15 +59,14 @@ test("wrapper emits wrapper_ready before accepting requests", async () => {
     assert.equal(ready.data.hasMemory, false);
     assert.match(ready.data.model, /^claude-/);
   } finally {
-    h.closeStdin();
-    await h.waitForExit();
+    await h.dispose();
     rmSync(repo, { recursive: true, force: true });
   }
 });
 
 test("state RPC reflects fresh agent", async () => {
   const repo = makeRepo();
-  const h = new WrapperHarness(repo);
+  const h = harnessFor(repo);
   try {
     await h.waitForEvent((e) => e.event === "wrapper_ready");
     const resp = await h.call("state");
@@ -176,15 +79,14 @@ test("state RPC reflects fresh agent", async () => {
       repoPath: repo,
     });
   } finally {
-    h.closeStdin();
-    await h.waitForExit();
+    await h.dispose();
     rmSync(repo, { recursive: true, force: true });
   }
 });
 
-test("prompt + agent_end + verifies real edit and commit", async () => {
+test("prompt + agent_end verifies real edit and commit, with sane event ordering", async () => {
   const repo = makeRepo();
-  const h = new WrapperHarness(repo);
+  const h = harnessFor(repo);
   try {
     await h.waitForEvent((e) => e.event === "wrapper_ready");
 
@@ -199,10 +101,7 @@ test("prompt + agent_end + verifies real edit and commit", async () => {
     assert.equal(promptResp.result.started, true);
 
     // agent_end can take 5–15 s on a real call. 60 s ceiling is generous.
-    const end = await h.waitForEvent(
-      (e) => e.event === "agent_end",
-      { timeoutMs: 60_000 },
-    );
+    const end = await h.waitForEvent((e) => e.event === "agent_end", { timeoutMs: 60_000 });
     assert.ok(end);
 
     const headSha = execSync("git rev-parse HEAD", { cwd: repo }).toString().trim();
@@ -213,28 +112,35 @@ test("prompt + agent_end + verifies real edit and commit", async () => {
     assert.match(headMsg, /wrapper/i);
     assert.match(readme, /Wrapper integration test passed/);
 
+    // Event-ordering contract (DESIGN.md): wrapper_ready exactly once and first;
+    // within the run, agent_start precedes agent_end.
+    const types = h.events.map((e) => e.event);
+    assert.equal(types.filter((t) => t === "wrapper_ready").length, 1);
+    assert.equal(types[0], "wrapper_ready");
+    assert.ok(types.indexOf("agent_start") !== -1, "saw agent_start");
+    assert.ok(
+      types.indexOf("agent_start") < types.lastIndexOf("agent_end"),
+      "agent_start precedes agent_end",
+    );
+
     const stateResp = await h.call("state");
     assert.equal(stateResp.result.isStreaming, false);
     assert.ok(stateResp.result.messageCount > 0);
   } finally {
-    h.closeStdin();
-    await h.waitForExit();
+    await h.dispose();
     rmSync(repo, { recursive: true, force: true });
   }
 });
 
 test("abort during a real run settles with stopReason aborted", async () => {
   const repo = makeRepo();
-  const h = new WrapperHarness(repo);
+  const h = harnessFor(repo);
   try {
     await h.waitForEvent((e) => e.event === "wrapper_ready");
 
     let textDeltasSeen = 0;
     h.onEvent((evt) => {
-      if (
-        evt.event === "message_update" &&
-        evt.data?.assistantMessageEvent?.type === "text_delta"
-      ) {
+      if (evt.event === "message_update" && evt.data?.assistantMessageEvent?.type === "text_delta") {
         textDeltasSeen += 1;
       }
     });
@@ -257,27 +163,22 @@ test("abort during a real run settles with stopReason aborted", async () => {
     const abortResp = await h.call("abort");
     assert.equal(abortResp.result.aborted, true);
 
-    const end = await h.waitForEvent(
-      (e) => e.event === "agent_end",
-      { timeoutMs: 5_000 },
-    );
+    const end = await h.waitForEvent((e) => e.event === "agent_end", { timeoutMs: 5_000 });
     const last = end.data.messages?.[end.data.messages.length - 1];
     assert.equal(last?.stopReason, "aborted");
   } finally {
-    h.closeStdin();
-    await h.waitForExit();
+    await h.dispose();
     rmSync(repo, { recursive: true, force: true });
   }
 });
 
 test("memory.md is loaded into system prompt when present", async () => {
   const repo = makeRepo();
-  // Seed memory.md with a fact only the agent can know if it read the file.
   const memoryContent = "## context\nThe magic phrase for this test is BANANA-7.";
   writeFileSync(join(repo, "memory.md"), memoryContent);
   execSync("git add memory.md && git commit -q -m 'add memory'", { cwd: repo });
 
-  const h = new WrapperHarness(repo);
+  const h = harnessFor(repo);
   try {
     const ready = await h.waitForEvent((e) => e.event === "wrapper_ready");
     assert.equal(ready.data.hasMemory, true);
@@ -288,10 +189,7 @@ test("memory.md is loaded into system prompt when present", async () => {
         "Reply with just the phrase, no other text. Do not call any tools.",
     });
 
-    const end = await h.waitForEvent(
-      (e) => e.event === "agent_end",
-      { timeoutMs: 30_000 },
-    );
+    const end = await h.waitForEvent((e) => e.event === "agent_end", { timeoutMs: 30_000 });
     const text = (end.data.messages ?? [])
       .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
       .filter((c) => c.type === "text")
@@ -299,15 +197,14 @@ test("memory.md is loaded into system prompt when present", async () => {
       .join("\n");
     assert.match(text, /BANANA-7/);
   } finally {
-    h.closeStdin();
-    await h.waitForExit();
+    await h.dispose();
     rmSync(repo, { recursive: true, force: true });
   }
 });
 
 test("second prompt while first is in flight is rejected with busy", async () => {
   const repo = makeRepo();
-  const h = new WrapperHarness(repo);
+  const h = harnessFor(repo);
   try {
     await h.waitForEvent((e) => e.event === "wrapper_ready");
     const first = await h.call("prompt", { text: "Count to 50, one per line." });
@@ -315,19 +212,41 @@ test("second prompt while first is in flight is rejected with busy", async () =>
     // Don't wait for end; immediately try a second.
     const second = await h.call("prompt", { text: "ignored" });
     assert.equal(second.error?.code, "busy");
-    // Clean up by aborting and waiting for end.
     await h.call("abort");
     await h.waitForEvent((e) => e.event === "agent_end", { timeoutMs: 5_000 });
   } finally {
+    await h.dispose();
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("stdin close during a live run aborts and exits 0", async () => {
+  const repo = makeRepo();
+  const h = harnessFor(repo);
+  try {
+    await h.waitForEvent((e) => e.event === "wrapper_ready");
+    await h.call("prompt", { text: "Count slowly to 200, one number per line." });
+    // Let streaming get going, then close stdin (not abort) — the clean-shutdown
+    // path must abort the in-flight run and exit 0.
+    await h.waitForEvent((e) => e.event === "message_update" || e.event === "agent_start", {
+      timeoutMs: 15_000,
+    });
     h.closeStdin();
-    await h.waitForExit();
+    const code = await h.waitForExit();
+    assert.equal(code, 0);
+    const ended = h.events.find((e) => e.event === "agent_end");
+    if (ended) {
+      const last = ended.data.messages?.[ended.data.messages.length - 1];
+      assert.equal(last?.stopReason, "aborted");
+    }
+  } finally {
     rmSync(repo, { recursive: true, force: true });
   }
 });
 
 test("shutdown method exits cleanly", async () => {
   const repo = makeRepo();
-  const h = new WrapperHarness(repo);
+  const h = harnessFor(repo);
   try {
     await h.waitForEvent((e) => e.event === "wrapper_ready");
     const resp = await h.call("shutdown");
