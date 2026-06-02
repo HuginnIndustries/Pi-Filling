@@ -10,8 +10,8 @@
 // doesn't require an API key. The contract we're verifying is the agent loop's,
 // not Anthropic's.
 
-import { Agent } from "@mariozechner/pi-agent-core";
-import { createAssistantMessageEventStream } from "@mariozechner/pi-ai";
+import { Agent } from "@earendil-works/pi-agent-core";
+import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
 
 const ZERO_USAGE = {
   input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,

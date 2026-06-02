@@ -14,8 +14,8 @@
 // Output is JSON to stdout. We never print the API key or the full
 // transcript (the SDK may include the key in error messages).
 
-import { Agent } from "@mariozechner/pi-agent-core";
-import { getModel } from "@mariozechner/pi-ai";
+import { Agent } from "@earendil-works/pi-agent-core";
+import { getModel } from "@earendil-works/pi-ai";
 
 const results = {
   environment: {
@@ -38,7 +38,7 @@ const results = {
   };
   try {
     const importStart = Date.now();
-    const { createCodingTools } = await import("@mariozechner/pi-coding-agent");
+    const { createCodingTools } = await import("@earendil-works/pi-coding-agent");
     out.import_ms = Date.now() - importStart;
 
     const createStart = Date.now();

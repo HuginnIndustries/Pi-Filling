@@ -2,16 +2,32 @@
   "name": "pi-filling-node-wrapper",
   "private": true,
   "type": "module",
-  "version": "0.0.0",
-  "description": "Node wrapper around @mariozechner/pi-agent-core. Owns one Agent instance for the lifetime of a process; exposes a small JSONL RPC surface over stdio so Layer 1 (Android app) can drive it. See DESIGN.md.",
+  "version": "0.1.0",
+  "description": "Node wrapper around @earendil-works/pi-agent-core. Owns one Agent instance for the lifetime of a process; exposes a small JSONL RPC surface over stdio so Layer 1 (Android app) can drive it. See DESIGN.md.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HuginnIndustries/Pi-Filling.git",
+    "directory": "node-wrapper"
+  },
   "main": "src/wrapper.mjs",
   "scripts": {
-    "test": "node --test"
+    "start": "node src/wrapper.mjs",
+    "test": "node --test",
+    "lint": "eslint .",
+    "format": "prettier --check .",
+    "format:write": "prettier --write ."
   },
   "dependencies": {
-    "@mariozechner/pi-agent-core": "^0.73.0",
-    "@mariozechner/pi-ai": "^0.73.0",
-    "@mariozechner/pi-coding-agent": "^0.73.0"
+    "@earendil-works/pi-agent-core": "0.78.0",
+    "@earendil-works/pi-ai": "0.78.0",
+    "@earendil-works/pi-coding-agent": "0.78.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.17.0",
+    "eslint": "9.17.0",
+    "globals": "15.14.0",
+    "prettier": "3.4.2"
   },
   "engines": {
     "node": ">=22"

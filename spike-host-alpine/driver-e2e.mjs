@@ -24,9 +24,9 @@
 // Reads ANTHROPIC_API_KEY from env. Exits non-zero if missing or if any
 // verification fails.
 
-import { Agent } from "@mariozechner/pi-agent-core";
-import { getModel } from "@mariozechner/pi-ai";
-import { createCodingTools } from "@mariozechner/pi-coding-agent";
+import { Agent } from "@earendil-works/pi-agent-core";
+import { getModel } from "@earendil-works/pi-ai";
+import { createCodingTools } from "@earendil-works/pi-coding-agent";
 import { execSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
