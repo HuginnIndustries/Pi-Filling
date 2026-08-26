@@ -1,7 +1,7 @@
 # Spike Notes — host-Alpine, Track A
 
 **Date:** 2026-05-09
-**Branch:** originally a separate spike branch, since merged into `main` and deleted; these commits are in `main`'s history
+**Branch:** originally a separate spike branch, since merged into `main`; these commits are in `main`'s history
 **Workdir:** `spike-host-alpine/`
 **Status:** all three empirical questions answered. Track A is viable.
 

@@ -25,7 +25,7 @@ In the meantime, the most useful contributions are:
 ## How development works today
 
 - All work happens on `main`. The pre-1.0 spike and production-readiness
-  branches have been merged and deleted; their commits are in `main`'s history.
+  branches are fully merged; their commits are in `main`'s history.
 - Authoritative documents in priority order: `V1_SPEC.md`,
   `ARCHITECTURE.md`, `ROADMAP.md`, `SPIKE_NOTES.md`. `HANDOFF.md` is
   preserved historical context, superseded by `V1_SPEC.md` on conflicts.
