@@ -115,6 +115,23 @@ shipped with a public repo.
 - Audited all 21 commits of history before publication: no credentials in any
   of the 150 blobs, no sensitive filenames, nothing added-then-deleted.
 
+#### Fixed — CI reported green on broken code
+
+- `spike-host-alpine/` had **no CI coverage at all**, so a dependency bump that
+  removed an export its drivers use passed every check while breaking them at
+  import time. A Dependabot PR bumping that directory to `0.84.2` did exactly
+  that and showed green — `getModel` moves out of `@earendil-works/pi-ai`'s main
+  entry point, and `driver-e2e.mjs` and `driver-extras.mjs` both import it.
+- Added a `spike-api-contract` CI job. Two of the three drivers need a real API
+  key and cannot run in CI, so `scripts/check-api.mjs` asserts their **import
+  contract** instead: it reads the named imports each driver takes from an
+  `@earendil-works` package and checks the package still exports them. Verified
+  it passes at `0.78.0` and fails on the `0.84.2` bump that CI had waved through.
+- The job also runs `driver.mjs`, which is hermetic by design (mock `streamFn`,
+  no real LLM call), so the Q1/Q2/Q3 spike assertions now run on every push.
+- Corrected a stale `@mariozechner/*` reference in `driver.mjs`'s header, left
+  over from the namespace migration.
+
 #### Added
 
 - `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1).

@@ -73,6 +73,33 @@ jobs:
       - name: Run suite inside Alpine/musl (no key)
         run: docker run --rm pi-filling-node-wrapper
 
+  spike-api-contract:
+    name: spike-host-alpine · API contract + hermetic driver
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: spike-host-alpine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: spike-host-alpine/package-lock.json
+      - name: Install (locked)
+        run: npm ci
+      # This directory had no CI coverage at all, so a dependency bump that
+      # removed an export the drivers use reported green while breaking every
+      # driver at import time (a 0.84.x bump moves `getModel` out of pi-ai's
+      # main entry). driver-extras and driver-e2e need a real API key and can't
+      # run here, so assert their import contract instead.
+      - name: API contract (no key needed)
+        run: npm run check-api
+      # driver.mjs is hermetic by design — a mock streamFn, no real LLM call —
+      # so the Q1/Q2/Q3 spike assertions can run on every push.
+      - name: Hermetic spike driver (Q1/Q2/Q3)
+        run: npm run spike
+
   shell-lint:
     name: proot-bootstrap · shellcheck
     runs-on: ubuntu-latest

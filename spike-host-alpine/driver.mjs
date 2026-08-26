@@ -1,7 +1,7 @@
 // Pi-Filling host-Alpine spike driver.
 //
 // Answers the three empirical questions from V1_SPEC.md:
-//   Q1. Does @mariozechner/pi-agent-core + pi-ai install + import cleanly on Alpine/musl?
+//   Q1. Does @earendil-works/pi-agent-core + pi-ai install + import cleanly on Alpine/musl?
 //   Q2. Can we inject an Anthropic API key per-call via getApiKey, and is the resolved
 //       value actually plumbed into the stream call?
 //   Q3. Does Agent.abort() during an in-flight stream surface as a clean "aborted" stop?
