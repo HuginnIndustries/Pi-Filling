@@ -1,5 +1,8 @@
 # Pi-Filling
 
+[![CI](https://github.com/HuginnIndustries/Pi-Filling/actions/workflows/ci.yml/badge.svg)](https://github.com/HuginnIndustries/Pi-Filling/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+
 > A phone-first AI coding agent. Working title; the real name will emerge as the product does.
 
 Pi-Filling runs a Node-based coding agent inside an Alpine Linux sandbox on
@@ -68,10 +71,7 @@ older spike regressions if you want the lower-level pi-mono proofs.
 
 ```sh
 git clone https://github.com/HuginnIndustries/Pi-Filling.git
-cd Pi-Filling
-git checkout claude/spike-pi-agent-android-NugAe   # main isn't open yet
-
-cd node-wrapper
+cd Pi-Filling/node-wrapper
 npm ci                                              # locked, reproducible install
 npm test                                            # 23 passing, offline when no key is set
 docker build -t pi-filling-node-wrapper .

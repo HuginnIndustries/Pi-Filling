@@ -2,8 +2,8 @@
 
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The project is pre-1.0
-and developed on the `claude/spike-pi-agent-android-NugAe` working branch; until
-a `main` opens, "Unreleased" is the live state.
+and developed on `main`; until the first tagged release, "Unreleased" is the
+live state.
 
 ## [Unreleased]
 

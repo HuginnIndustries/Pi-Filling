@@ -1,7 +1,7 @@
 # Spike Notes — host-Alpine, Track A
 
 **Date:** 2026-05-09
-**Branch:** `claude/spike-pi-agent-android-NugAe`
+**Branch:** `claude/spike-pi-agent-android-NugAe` (historical; this work now lives on `main`)
 **Workdir:** `spike-host-alpine/`
 **Status:** all three empirical questions answered. Track A is viable.
 

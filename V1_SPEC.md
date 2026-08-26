@@ -1,7 +1,7 @@
 # v1 Spec — phone-first AI coding agent
 
 **Status:** locked, post-spike; wrapper Docker verification complete. Last revision: 2026-05-21.
-**Working branch:** `claude/spike-pi-agent-android-NugAe` (across all participating repos).
+**Working branch:** `main`.
 **Project name:** none yet. Branding emerges from building. Repo is `Pi-Filling` as a working title.
 
 This document is the contract. Anything not in scope here is **not v1**, regardless of how appealing it sounds. When scope creep arrives, the answer is "see V1_SPEC.md, then re-open the question after v1 ships."

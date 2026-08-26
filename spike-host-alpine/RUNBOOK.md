@@ -26,9 +26,7 @@ You don't need Node, npm, or Alpine on your host — Docker handles all of it.
 
 ```sh
 git clone https://github.com/HuginnIndustries/Pi-Filling.git
-cd Pi-Filling
-git checkout claude/spike-pi-agent-android-NugAe
-cd spike-host-alpine
+cd Pi-Filling/spike-host-alpine
 ```
 
 You should see `Dockerfile`, `package.json`, `package-lock.json`,
