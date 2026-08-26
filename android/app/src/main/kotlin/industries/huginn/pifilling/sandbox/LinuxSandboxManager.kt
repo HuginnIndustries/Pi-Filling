@@ -37,6 +37,42 @@ class LinuxSandboxManager(
 
     private val deviceAbi: String get() = Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"
 
+    private val nativeLibStageDir = File(sandboxDir, "nativelib")
+
+    /**
+     * Work around a name mismatch between talloc's SONAME and what Android is
+     * able to package.
+     *
+     * `libproot.so` records its dependency under talloc's real SONAME,
+     * `libtalloc.so.2`. An APK only extracts entries matching `lib*.so` into
+     * the native library dir, so the packaged copy is necessarily named
+     * `libtalloc.so` and the dynamic linker cannot satisfy the dependency:
+     *
+     *     CANNOT LINK EXECUTABLE ".../libproot.so":
+     *     library "libtalloc.so.2" not found: needed by main executable
+     *
+     * Stage a copy under the name the linker actually looks for, in
+     * app-private storage, and put that directory on proot's library search
+     * path. The fix lives here rather than in `build-proot.sh` because that
+     * script is vendored byte-identical from Kai (see
+     * `proot-bootstrap/VENDORED.md`) and Android packaging is our constraint,
+     * not upstream's.
+     *
+     * Verified on hardware; see `android/VERIFICATION.md`.
+     */
+    private fun stageNativeLibs(): File {
+        nativeLibStageDir.mkdirs()
+        val source = File(nativeLibDir, "libtalloc.so")
+        val staged = File(nativeLibStageDir, "libtalloc.so.2")
+        // Re-copy when absent or when an app update changed the library.
+        if (source.exists() && (!staged.exists() || staged.length() != source.length())) {
+            source.inputStream().use { input ->
+                staged.outputStream().use { output -> input.copyTo(output) }
+            }
+        }
+        return nativeLibStageDir
+    }
+
     private val _state = MutableStateFlow<SandboxState>(
         if (markerFile.exists()) SandboxState.Ready else SandboxState.NotInstalled,
     )
@@ -46,7 +82,7 @@ class LinuxSandboxManager(
 
     fun createExecutor(): ProotExecutor = ProotExecutor(
         prootPath = prootPath,
-        libDir = nativeLibDir,
+        libDir = "${stageNativeLibs().absolutePath}:$nativeLibDir",
         rootfsPath = rootfsDir.absolutePath,
         homePath = homeDir.absolutePath,
         tmpPath = tmpDir.absolutePath,

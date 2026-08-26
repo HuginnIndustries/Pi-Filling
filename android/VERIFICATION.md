@@ -7,6 +7,77 @@ from assumption.
 
 Device serials and any device content are deliberately excluded from this file.
 
+## 2026-08-26 — proot and the Linux sandbox
+
+Same device and build lineage as the run below, with `proot-bootstrap/build-proot.sh`
+run for the first time (NDK r29 stable, `29.0.14206865`) and its output bundled
+into the APK.
+
+### Two bugs found, both of which made the sandbox unstartable on any device
+
+**1. `libproot.so` could not link — talloc SONAME vs Android packaging.**
+
+```
+CANNOT LINK EXECUTABLE ".../libproot.so":
+library "libtalloc.so.2" not found: needed by main executable
+```
+
+`libtalloc.so` carries SONAME `libtalloc.so.2` and `libproot.so` records that as
+its `NEEDED` entry, but an APK only extracts entries matching `lib*.so`, so the
+packaged file is necessarily `libtalloc.so` — a name the linker never asks for.
+`build-proot.sh` copies the library without touching the SONAME, and nothing in
+Layer 1 bridged it. Fixed by staging a SONAME-correct copy into app-private
+storage (`LinuxSandboxManager.stageNativeLibs`) and putting that directory on
+proot's library search path. The fix is deliberately **not** in
+`build-proot.sh`, which `proot-bootstrap/VENDORED.md` requires stay
+byte-identical to Kai's.
+
+**2. The rootfs extractor never applied the archived executable bit.**
+
+```
+apk update failed: proot error: '/bin/sh' is not executable
+```
+
+`RootfsDownloader` read the tar header's name, size, type and linkname but not
+its **mode** (offset 100, 8 bytes octal). Java creates files non-executable, so
+every binary in the rootfs landed as `-rw-------`. `/bin/sh` is a symlink to
+busybox, and busybox was the file that needed `+x`. Fixed by parsing the mode and
+applying owner-execute when any execute bit is set.
+
+Neither bug is reachable from CI. Both required running on hardware.
+
+### Passed
+
+| # | Claim | Evidence |
+|---|---|---|
+| 5 | proot cross-compiles for all three ABIs | `build-proot.sh` produced `libproot.so`, `libproot-loader.so`, `libproot-loader32.so`, `libtalloc.so` for arm64-v8a, armeabi-v7a and x86_64 |
+| 6 | The binaries ship in the APK and reach the device | All four present under `lib/arm64-v8a/` in the APK and unpacked to the native library dir with exec permission; `primaryCpuAbi=arm64-v8a` |
+| 7 | **proot executes on the device** | `libproot.so --version` reports `4dba3afb-dirty` — the pinned commit — and `built-in accelerators: process_vm = yes, seccomp_filter = yes` |
+| 8 | The app's own staging fix works | After provisioning, `files/linux-sandbox/nativelib/libtalloc.so.2` exists and proot links. Verified with the manual workaround removed first, so the app's code path is what was exercised |
+| 9 | The exec-bit fix works | `rootfs/bin/busybox` is `-rwx------` after re-extraction (was `-rw-------`) |
+| 10 | **The sandbox provisions end to end** | `apk update` and `apk add nodejs npm git` both succeed. Inside proot: Alpine `3.21.3`, `aarch64`, Node `v22.23.2`, npm `10.9.1`, git `2.47.3`, `uid=0(root)` from proot's `-0` emulation. ~354 MB on disk |
+| 11 | Layer 3 is deployed into Layer 2 | `/root/wrapper` contains `src`, `package.json`, `package-lock.json` and a populated `node_modules` — `npm install` ran inside Alpine on the phone |
+
+Claim 10 matters most: Node 22 is the wrapper's minimum, and it is running on the
+phone under proot.
+
+### Not proved
+
+- **No agent session has been started from the app.** The UI reaches its session
+  screen, but no prompt has been sent and the wrapper has not been launched by
+  `startWrapper`. Layers 1–3 are individually verified; the end-to-end path is not.
+- The app hard-codes Anthropic: `startWrapper` passes no `--provider`, so the
+  wrapper's `ollama` provider is unreachable from the app.
+- Hardware-binding of the stored key is still unproven (see the run below).
+
+### Notes
+
+- The device clock was corrected by the owner between the two runs; timestamps in
+  this section are accurate.
+- The UI gates the sandbox screen behind a saved API key (`!hasKey -> ApiKeyEntry`),
+  so provisioning — which needs no key — cannot be reached without entering one.
+  A deliberately fake key was used and removed afterwards.
+
 ## 2026-08-26 — first run on hardware
 
 **Device:** Samsung SM-F946U (Galaxy Z Fold 5), Android 14 (API 34), inner

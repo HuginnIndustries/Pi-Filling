@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit
 /**
  * Runs commands inside the Alpine rootfs via proot. Ported from Kai's
  * ProotExecutor: the proot ELF is shipped as `libproot.so` under jniLibs and
- * executed from [libDir] (files in nativeLibraryDir are exempt from Android's
+ * executed from the native library dir (files there are exempt from Android's
  * W^X restriction on app data), with its loader and talloc beside it.
  *
  * Two entry points:
@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit
  */
 class ProotExecutor(
     private val prootPath: String,
+    /** `LD_LIBRARY_PATH` for proot: one or more dirs, colon-separated. */
     private val libDir: String,
     private val rootfsPath: String,
     private val homePath: String,

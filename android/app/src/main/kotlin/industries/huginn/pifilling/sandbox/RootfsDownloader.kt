@@ -118,6 +118,7 @@ class RootfsDownloader {
                 pendingLongName = null
 
                 val size = tarOctal(header, 124, 12)
+                val mode = tarOctal(header, 100, 8)
                 val type = header[156].toInt().toChar()
                 val linkName = tarString(header, 157, 100)
 
@@ -144,6 +145,16 @@ class RootfsDownloader {
                     '0', '\u0000' -> {
                         target.parentFile?.mkdirs()
                         writeFile(gz, target, size)
+                        // Apply the archived executable bit. Java creates files
+                        // non-executable, so without this every binary in the
+                        // rootfs lands as -rw------- and proot fails on the
+                        // first command with "'/bin/sh' is not executable" —
+                        // /bin/sh is a symlink to busybox, and busybox is the
+                        // file that actually needs +x. Owner-only is enough:
+                        // proot runs as this app's uid.
+                        if (mode and TAR_EXEC_BITS != 0L) {
+                            target.setExecutable(true, /* ownerOnly = */ true)
+                        }
                     }
                     else -> skip(gz, paddedSize(size)) // unsupported (char/block/fifo) — skip
                 }
@@ -255,6 +266,8 @@ class RootfsDownloader {
         const val ALPINE_VERSION = "3.21.3"
         const val ALPINE_BRANCH = "v3.21"
         private const val BLOCK = 512
+        /** Owner/group/other execute bits in a tar header's mode field (0o111). */
+        private const val TAR_EXEC_BITS = 0b001_001_001L
         private const val CONNECT_TIMEOUT_MS = 15_000
         private const val READ_TIMEOUT_MS = 30_000
         private const val TAG = "RootfsDownloader"
