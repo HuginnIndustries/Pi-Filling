@@ -35,12 +35,14 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import industries.huginn.pifilling.runtime.AgentController.SessionState
+import industries.huginn.pifilling.sandbox.AgentProvider
 import industries.huginn.pifilling.sandbox.SandboxState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PiFillingApp(vm: AppViewModel) {
     val hasKey by vm.hasApiKey.collectAsStateWithLifecycle()
+    val provider by vm.provider.collectAsStateWithLifecycle()
     val sandbox by vm.sandboxState.collectAsStateWithLifecycle()
     val session by vm.sessionState.collectAsStateWithLifecycle()
 
@@ -55,7 +57,11 @@ fun PiFillingApp(vm: AppViewModel) {
                 .fillMaxSize(),
         ) {
             when {
-                !hasKey -> ApiKeyEntry(onSave = vm::saveApiKey)
+                !hasKey -> ApiKeyEntry(
+                    provider = provider,
+                    onProviderChange = vm::setProvider,
+                    onSave = vm::saveApiKey,
+                )
                 sandbox !is SandboxState.Ready -> SandboxSetup(sandbox, onProvision = vm::provision)
                 else -> SessionScreen(vm, session)
             }
@@ -64,10 +70,28 @@ fun PiFillingApp(vm: AppViewModel) {
 }
 
 @Composable
-private fun ApiKeyEntry(onSave: (String) -> Unit) {
-    var key by remember { mutableStateOf("") }
+private fun ApiKeyEntry(
+    provider: AgentProvider,
+    onProviderChange: (AgentProvider) -> Unit,
+    onSave: (String) -> Unit,
+) {
+    // Keyed on the provider so switching clears any half-typed credential
+    // rather than carrying it across to a different service.
+    var key by remember(provider) { mutableStateOf("") }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Anthropic API key", style = MaterialTheme.typography.titleMedium)
+        Text("Provider", style = MaterialTheme.typography.titleMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AgentProvider.entries.forEach { candidate ->
+                if (candidate == provider) {
+                    Button(onClick = {}) { Text(candidate.label) }
+                } else {
+                    OutlinedButton(onClick = { onProviderChange(candidate) }) {
+                        Text(candidate.label)
+                    }
+                }
+            }
+        }
+        Text("${provider.label} API key", style = MaterialTheme.typography.titleMedium)
         Text(
             "Stored encrypted on-device (AndroidKeyStore). Never written to the sandbox filesystem; " +
                 "passed to the agent only in memory at run start.",
@@ -76,7 +100,7 @@ private fun ApiKeyEntry(onSave: (String) -> Unit) {
         OutlinedTextField(
             value = key,
             onValueChange = { key = it },
-            label = { Text("sk-ant-...") },
+            label = { Text(provider.keyHint) },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),

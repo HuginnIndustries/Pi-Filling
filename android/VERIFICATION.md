@@ -7,6 +7,56 @@ from assumption.
 
 Device serials and any device content are deliberately excluded from this file.
 
+## 2026-08-26 — end-to-end agent run from the app
+
+Same device. Provider selection wired through Layer 1 so the wrapper's
+`--provider` can be driven from the UI.
+
+### A third bug: the agent's answer never reached the screen
+
+The transcript builder read the streamed chunk from
+`assistantMessageEvent.text`, falling back to a top-level `data.delta`.
+The wrapper emits neither. The real shape is:
+
+```jsonc
+{"event":"message_update","data":{"assistantMessageEvent":{"type":"text_delta","delta":"..."}}}
+```
+
+so no assistant text was ever appended — the agent worked and the UI showed
+only `▸ bash`, `▸ read`, `— done —`. Fixed by reading `delta` from
+`assistantMessageEvent` and gating on `type == "text_delta"`. The type check is
+load-bearing: `thinking_delta` carries a `delta` too, and reading it
+unconditionally would splice the model's reasoning into the visible reply.
+
+### Passed
+
+| # | Claim | Evidence |
+|---|---|---|
+| 12 | The wrapper runs under proot on the phone against a live provider | `wrapper_ready {"provider":"ollama","model":"gpt-oss:120b","repoPath":"/root/repo"}`, then a `read` tool call returning the file and the correct answer |
+| 13 | Credentials are stored per provider | Saving under Ollama wrote `ollama_api_key`; the Anthropic slot stayed empty. Selecting Anthropic re-prompts for a key while Ollama's remains usable |
+| 14 | The provider chooser drives the wrapper | Selecting **Ollama Cloud** relabels the field and its hint, and `startWrapper` emits `--provider ollama`, confirmed by `wrapper_ready (provider=ollama …)` in the app's log |
+| 15 | **Full round trip from the UI** | Typed a prompt in the app; the agent called `bash` and `read`, and the transcript rendered the answer containing the file's contents. Every layer participated: Compose UI → `AgentController` → proot → Alpine → Node wrapper → provider → tools → back |
+
+### Not proved
+
+- **Anthropic has still never made a live call from the device.** Claim 12 exercises
+  `openai-completions`; the provider v1 actually ships against is unexercised on
+  hardware.
+- No git write path was exercised — the agent read a file but did not edit or
+  commit, so the `bash`-driven git flow that V1_SPEC describes is untested on device.
+- Hardware-binding of the stored key remains unproven (see the first run below).
+
+### Notes
+
+- **Provider selection is not persisted.** On relaunch the app resets to Anthropic
+  and asks for a key, even with an Ollama key stored. Re-selecting Ollama picks the
+  stored credential straight up and skips entry, so it is a papercut rather than a
+  defect — but it should probably follow the key into storage.
+- The model's phrasing varied between runs (bare `4271` once, a prose answer with
+  the content quoted the next). That is model behaviour, not app behaviour.
+- `uiautomator` truncates long text nodes, so the first read of the transcript
+  looked like a partial answer. The full node attribute carried the whole reply.
+
 ## 2026-08-26 — proot and the Linux sandbox
 
 Same device and build lineage as the run below, with `proot-bootstrap/build-proot.sh`

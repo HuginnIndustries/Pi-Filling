@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import industries.huginn.pifilling.runtime.AgentController
+import industries.huginn.pifilling.sandbox.AgentProvider
 import industries.huginn.pifilling.sandbox.SandboxState
 import industries.huginn.pifilling.wrapper.WrapperEvent
 import kotlinx.coroutines.Dispatchers
@@ -30,8 +31,20 @@ class AppViewModel(private val agent: AgentController) : ViewModel() {
     val sessionState: StateFlow<AgentController.SessionState> =
         agent.session.stateIn(viewModelScope, SharingStarted.Eagerly, agent.session.value)
 
-    private val _hasApiKey = MutableStateFlow(agent.keyStore.hasApiKey())
+    private val _provider = MutableStateFlow(AgentProvider.DEFAULT)
+    val provider: StateFlow<AgentProvider> = _provider.asStateFlow()
+
+    private val _hasApiKey = MutableStateFlow(agent.keyStore.hasApiKey(AgentProvider.DEFAULT))
     val hasApiKey: StateFlow<Boolean> = _hasApiKey.asStateFlow()
+
+    /**
+     * Switching provider re-reads whether *that* provider has a key, so the UI
+     * asks for a credential per provider rather than assuming one covers both.
+     */
+    fun setProvider(next: AgentProvider) {
+        _provider.value = next
+        _hasApiKey.value = agent.keyStore.hasApiKey(next)
+    }
 
     private val _transcript = MutableStateFlow<List<TranscriptLine>>(emptyList())
     val transcript: StateFlow<List<TranscriptLine>> = _transcript.asStateFlow()
@@ -43,22 +56,25 @@ class AppViewModel(private val agent: AgentController) : ViewModel() {
     }
 
     fun saveApiKey(key: String) {
+        val target = _provider.value
         viewModelScope.launch(Dispatchers.IO) {
-            agent.keyStore.setApiKey(key.trim())
+            agent.keyStore.setApiKey(key.trim(), target)
             _hasApiKey.value = true
         }
     }
 
     fun clearApiKey() {
+        val target = _provider.value
         viewModelScope.launch(Dispatchers.IO) {
-            agent.keyStore.clearApiKey()
+            agent.keyStore.clearApiKey(target)
             _hasApiKey.value = false
         }
     }
 
     fun provision() = agent.provision()
 
-    fun startSession(repoGuestPath: String) = agent.startSession(repoGuestPath)
+    fun startSession(repoGuestPath: String) =
+        agent.startSession(repoGuestPath, _provider.value, _provider.value.defaultModel)
 
     fun send(text: String) {
         if (text.isBlank()) return
@@ -74,10 +90,20 @@ class AppViewModel(private val agent: AgentController) : ViewModel() {
         // Accumulate streamed assistant text deltas; tag other events as system.
         when (event.type) {
             "message_update" -> {
-                val delta = event.data["assistantMessageEvent"]?.jsonObject
-                    ?.get("text")?.jsonPrimitive?.contentOrNull
-                    ?: event.data["delta"]?.jsonPrimitive?.contentOrNull
-                if (!delta.isNullOrEmpty()) appendToLast("assistant", delta)
+                // The wrapper nests the streamed chunk as
+                //   data.assistantMessageEvent = { type: "text_delta", delta: "..." }
+                // Neither `assistantMessageEvent.text` nor a top-level `data.delta`
+                // exists, so the previous lookup never matched and the agent's
+                // answer never reached the transcript.
+                //
+                // The type check is not optional: `thinking_delta` carries a
+                // `delta` field too, and reading it unconditionally would splice
+                // the model's reasoning into the visible reply.
+                val assistantEvent = event.data["assistantMessageEvent"]?.jsonObject
+                if (assistantEvent?.get("type")?.jsonPrimitive?.contentOrNull == "text_delta") {
+                    val delta = assistantEvent["delta"]?.jsonPrimitive?.contentOrNull
+                    if (!delta.isNullOrEmpty()) appendToLast("assistant", delta)
+                }
             }
             "tool_execution_start" -> {
                 val name = event.data["toolName"]?.jsonPrimitive?.contentOrNull ?: "tool"

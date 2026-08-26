@@ -3,6 +3,7 @@ package industries.huginn.pifilling.runtime
 import android.content.Context
 import android.util.Log
 import industries.huginn.pifilling.sandbox.LinuxSandboxManager
+import industries.huginn.pifilling.sandbox.AgentProvider
 import industries.huginn.pifilling.sandbox.SandboxState
 import industries.huginn.pifilling.service.DaemonService
 import industries.huginn.pifilling.storage.SecureKeyStore
@@ -72,13 +73,17 @@ class AgentController(
      * Start an agent session against [repoGuestPath] (a path inside the rootfs).
      * Requires a stored API key and a [SandboxState.Ready] sandbox.
      */
-    fun startSession(repoGuestPath: String, model: String? = null) {
+    fun startSession(
+        repoGuestPath: String,
+        provider: AgentProvider = AgentProvider.DEFAULT,
+        model: String? = null,
+    ) {
         scope.launch {
             // Key decryption touches the AndroidKeyStore + disk; keep it off the
             // default dispatcher's small pool.
-            val apiKey = withContext(Dispatchers.IO) { keyStore.getApiKey() }
+            val apiKey = withContext(Dispatchers.IO) { keyStore.getApiKey(provider) }
             if (apiKey.isNullOrBlank()) {
-                _session.value = SessionState.Failed("no API key set")
+                _session.value = SessionState.Failed("no ${provider.label} API key set")
                 return@launch
             }
             if (!sandbox.isReady) {
@@ -90,7 +95,7 @@ class AgentController(
                 DaemonService.start(appContext)
 
                 val proc = withContext(Dispatchers.IO) {
-                    sandbox.startWrapper(apiKey, repoGuestPath, model)
+                    sandbox.startWrapper(apiKey, repoGuestPath, provider, model)
                 }
                 val wc = WrapperClient(proc, scope)
                 process = proc

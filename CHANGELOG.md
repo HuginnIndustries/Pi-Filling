@@ -101,6 +101,25 @@ dependencies, docs) drove the following.
 - Recorded that `distributionSha256Sum` is still unpinned in
   `gradle-wrapper.properties`, as a supply-chain follow-up.
 
+### Provider selection in the Android app
+
+- `--provider` is now reachable from Layer 1. Added `AgentProvider`, mirroring the
+  wrapper's `PROVIDERS` table, and threaded it through `SecureKeyStore`,
+  `LinuxSandboxManager.startWrapper`, `AgentController.startSession`,
+  `AppViewModel` and the key-entry screen.
+- **Credentials are stored per provider.** `SecureKeyStore` keys on
+  `<provider>_api_key`; Anthropic keeps its historical `anthropic_api_key` name, so
+  an existing install does not lose its key. Switching provider re-reads whether
+  *that* provider has a credential rather than assuming one covers both.
+- **Fixed: the agent's answer never appeared in the app.** The transcript builder
+  looked for the streamed chunk at `assistantMessageEvent.text` or `data.delta`;
+  the wrapper emits `assistantMessageEvent.delta` with the kind in
+  `assistantMessageEvent.type`. Now reads the right field and gates on
+  `text_delta`, so `thinking_delta` reasoning is not spliced into the reply.
+- Verified end to end on a Galaxy Z Fold 5: prompt typed in the app, agent called
+  `bash` and `read` inside proot/Alpine, answer rendered in the transcript. See
+  `android/VERIFICATION.md`.
+
 ### Provider support
 
 #### Added — `--provider` on the node wrapper

@@ -197,17 +197,22 @@ class LinuxSandboxManager(
     fun startWrapper(
         apiKey: String,
         repoGuestPath: String,
+        provider: AgentProvider = AgentProvider.DEFAULT,
         model: String? = null,
         logLevel: String = "info",
     ): Process {
         check(isReady) { "sandbox not ready" }
         val modelArg = model?.let { " --model $it" } ?: ""
-        val command = "node /root/wrapper/src/wrapper.mjs --repo $repoGuestPath$modelArg"
+        val command =
+            "node /root/wrapper/src/wrapper.mjs --repo $repoGuestPath" +
+                " --provider ${provider.id}$modelArg"
         return createExecutor().start(
             command = command,
             workingDir = repoGuestPath,
             extraEnv = mapOf(
-                "ANTHROPIC_API_KEY" to apiKey,
+                // Each provider reads only its own variable, so this must match
+                // the wrapper's PROVIDERS table (see AgentProvider).
+                provider.keyEnv to apiKey,
                 "WRAPPER_LOG_LEVEL" to logLevel,
             ),
         )

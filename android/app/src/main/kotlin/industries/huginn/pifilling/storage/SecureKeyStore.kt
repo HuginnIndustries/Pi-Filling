@@ -2,6 +2,7 @@ package industries.huginn.pifilling.storage
 
 import android.content.Context
 import android.content.SharedPreferences
+import industries.huginn.pifilling.sandbox.AgentProvider
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -29,30 +30,35 @@ class SecureKeyStore(context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    fun hasApiKey(): Boolean = prefs.contains(PREF_API_KEY)
+    // Credentials are stored per provider: switching provider must not silently
+    // reuse the previous one's key, and each is encrypted under the same
+    // AndroidKeyStore master key.
 
-    fun setApiKey(apiKey: String) {
+    fun hasApiKey(provider: AgentProvider = AgentProvider.DEFAULT): Boolean =
+        prefs.contains(provider.prefKey)
+
+    fun setApiKey(apiKey: String, provider: AgentProvider = AgentProvider.DEFAULT) {
         val (iv, ciphertext) = encrypt(apiKey.toByteArray(Charsets.UTF_8))
         prefs.edit()
-            .putString(PREF_API_KEY, encode(iv, ciphertext))
+            .putString(provider.prefKey, encode(iv, ciphertext))
             .apply()
     }
 
     /** Returns the decrypted key, or null if none is stored / decryption fails. */
-    fun getApiKey(): String? {
-        val stored = prefs.getString(PREF_API_KEY, null) ?: return null
+    fun getApiKey(provider: AgentProvider = AgentProvider.DEFAULT): String? {
+        val stored = prefs.getString(provider.prefKey, null) ?: return null
         return try {
             val (iv, ciphertext) = decode(stored)
             String(decrypt(iv, ciphertext), Charsets.UTF_8)
         } catch (e: Exception) {
             // Tampered/rotated key material — drop it so the user can re-enter.
-            clearApiKey()
+            clearApiKey(provider)
             null
         }
     }
 
-    fun clearApiKey() {
-        prefs.edit().remove(PREF_API_KEY).apply()
+    fun clearApiKey(provider: AgentProvider = AgentProvider.DEFAULT) {
+        prefs.edit().remove(provider.prefKey).apply()
     }
 
     // ---- crypto ----
@@ -102,7 +108,6 @@ class SecureKeyStore(context: Context) {
         const val ANDROID_KEYSTORE = "AndroidKeyStore"
         const val KEY_ALIAS = "pifilling_master"
         const val PREFS_NAME = "pifilling_secure_prefs"
-        const val PREF_API_KEY = "anthropic_api_key"
         const val TRANSFORMATION = "AES/GCM/NoPadding"
         const val GCM_TAG_BITS = 128
         const val DELIM = ":"
