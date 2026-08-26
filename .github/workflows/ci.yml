@@ -22,7 +22,7 @@ jobs:
       run:
         working-directory: node-wrapper
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -46,7 +46,7 @@ jobs:
       run:
         working-directory: node-wrapper
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -67,7 +67,7 @@ jobs:
     name: node-wrapper · Alpine/musl image
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build image
         run: docker build -t pi-filling-node-wrapper ./node-wrapper
       - name: Run suite inside Alpine/musl (no key)
@@ -80,7 +80,7 @@ jobs:
       run:
         working-directory: spike-host-alpine
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -104,7 +104,7 @@ jobs:
     name: proot-bootstrap · shellcheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Syntax check
         run: bash -n android/proot-bootstrap/build-proot.sh
       - name: ShellCheck
