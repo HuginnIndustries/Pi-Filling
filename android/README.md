@@ -130,9 +130,12 @@ in code and tracked against the roadmap:
   cost meter, and run history are Stage 1.4/1.5.
 - **Version pins are conservative** (AGP 8.7.3 / Kotlin 2.0.21 / compileSdk 35);
   bump deliberately. Kai itself runs newer (see KAI_PATTERNS.md).
-- **Not yet tested on device.** The app compiles and packages (CI runs
-  `assembleDebug` on every push), but nothing here has been installed or run on
-  real hardware. No instrumented tests for proot exec or rootfs extraction yet.
+- **Partly tested on device.** The app installs, launches and renders its UI on
+  a Galaxy Z Fold 5 / Android 14, and key-at-rest encryption is verified — see
+  [VERIFICATION.md](./VERIFICATION.md). The sandbox is **not** exercised: the APK
+  ships no proot, so nothing in `LinuxSandboxManager`, rootfs extraction or
+  `ProotExecutor` has run on hardware, and no agent prompt has been sent from the
+  app. No instrumented tests yet.
 - **`distributionSha256Sum` is not pinned** in `gradle-wrapper.properties`.
   Worth adding for supply-chain hardening; it needs the checksum Gradle
   publishes alongside the 8.10.2 distribution.
