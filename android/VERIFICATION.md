@@ -7,6 +7,70 @@ from assumption.
 
 Device serials and any device content are deliberately excluded from this file.
 
+## 2026-08-26 — the agent edits and commits on device
+
+The V1_SPEC workflow — "edits files, runs git operations, and commits the
+changes" — exercised on hardware for the first time.
+
+### A fourth bug: no git identity in the sandbox
+
+Alpine ships no git identity, so the agent's first `git commit` failed with
+`Author identity unknown`. What it did next is the part worth recording: it
+burned five `bash` turns on failed commits and then **invented** an identity,
+writing `Assistant Bot <assistant@example.com>` into the *user's repository*
+local config. The commit landed, so a UI-level check would have called this a
+pass — the defect is only visible in `git log --format=%an` and
+`git config --local`.
+
+Two things wrong with that: commits are attributed to a fabricated author that
+looks like a person, and the agent silently mutated config in a repo the
+operator owns. Committing is the product's entire point, so the environment
+should supply an identity rather than leaving the model to improvise a
+plausible-looking one.
+
+Fixed in `LinuxSandboxManager`: provisioning now configures
+`Pi-Filling Agent <agent@pi-filling.local>` globally inside the sandbox —
+deliberately obviously-an-agent, on the reserved `.local` TLD, so it cannot read
+as a real person. Stage 1.5 should replace it with the operator's own identity
+once GitHub auth exists, because pushed commits should carry their name.
+
+A second problem surfaced while fixing the first: `SandboxState` starts `Ready`
+from the marker file alone, so `setup()` is never called again for an existing
+sandbox and a new provisioning step would silently never reach installs in the
+wild. Added a versioned marker and `ensureCurrent()`, called from
+`startSession`, which backfills missing steps rather than forcing a ~350 MB
+re-provision. Verified on a sandbox provisioned by the previous build:
+`backfilled sandbox setup to v2`, marker `alpine=3.21.3 abi=arm64-v8a setup=2`.
+
+### Passed
+
+| # | Claim | Evidence |
+|---|---|---|
+| 16 | The sandbox gets a git identity | `git config --global --list` inside proot returns `user.name=Pi-Filling Agent`, `user.email=agent@pi-filling.local` |
+| 17 | The backfill reaches already-provisioned sandboxes | Marker went `alpine=… abi=…` → `… setup=2` on a sandbox created by the previous build, with the log line above |
+| 18 | **The agent edits and commits on device** | From a prompt typed in the app: `65e952d Add greeting function and update README`, 3 files / 16 insertions, working tree clean |
+| 19 | Commits carry the configured author, not an invented one | `git log -1 --format="%an <%ae>"` → `Pi-Filling Agent <agent@pi-filling.local>` |
+| 20 | The agent no longer mutates the operator's repo config | `git config --local --list \| grep -c user` → `0`, where the pre-fix run wrote two entries |
+| 21 | `memory.md` works on device | The agent created and committed `memory.md` unprompted, recording what it had done — the ARCHITECTURE "Bet 2" behaviour, previously only exercised off-device |
+
+The failure took roughly ten agent turns; the fixed path took one.
+
+### Not proved
+
+- **Anthropic still has never made a live call from the device.** Every device run
+  so far has used `openai-completions`.
+- **No push.** The agent commits locally; `git push`, GitHub auth and credential
+  handling (Stage 1.5) are untouched.
+- Hardware-binding of the stored key remains unproven.
+
+### Notes
+
+- The model created `greeting.py` when the prompt asked for `hello.sh`, and wrote
+  Python rather than shell. That is model behaviour, not app behaviour, and is
+  recorded so a later reader does not mistake it for a defect.
+- `safe.directory=*` is set alongside the identity. proot maps the repo owner to
+  root, and git's ownership check would otherwise reject the working tree.
+
 ## 2026-08-26 — end-to-end agent run from the app
 
 Same device. Provider selection wired through Layer 1 so the wrapper's

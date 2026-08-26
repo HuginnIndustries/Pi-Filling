@@ -95,6 +95,7 @@ class LinuxSandboxManager(
      */
     suspend fun setup() {
         if (markerFile.exists()) {
+            ensureCurrent()
             _state.value = SandboxState.Ready
             return
         }
@@ -133,12 +134,12 @@ class LinuxSandboxManager(
             )
             check(add.success) { "apk add failed: ${add.stderr.take(500)}" }
 
+            configureGitIdentity(executor)
+
             _state.value = SandboxState.Installing("wrapper")
             deployWrapper(executor)
 
-            markerFile.writeText(
-                "alpine=${RootfsDownloader.ALPINE_VERSION} abi=$deviceAbi\n",
-            )
+            writeMarker()
             _state.value = SandboxState.Ready
             Log.i(TAG, "sandbox ready ($deviceAbi, Alpine ${RootfsDownloader.ALPINE_VERSION})")
         } catch (e: Exception) {
@@ -153,6 +154,69 @@ class LinuxSandboxManager(
      * production install. The app build copies `node-wrapper/{src,package.json,
      * package-lock.json}` into `assets/wrapper/` (see android/README.md).
      */
+    /**
+     * Bring an already-provisioned sandbox up to the current setup version.
+     *
+     * A sandbox provisioned by an older build keeps its marker, and
+     * [SandboxState] starts `Ready` from that marker alone, so [setup] is never
+     * called again — a new provisioning step would silently never reach existing
+     * installs. Backfilling is far cheaper than forcing a ~350 MB re-provision
+     * for what amounts to a couple of config writes.
+     *
+     * Cheap in the common case: a marker read and an integer compare, no proot
+     * exec unless there is actually work to do.
+     */
+    suspend fun ensureCurrent() {
+        if (!markerFile.exists() || readSetupVersion() >= SETUP_VERSION) return
+        runCatching { configureGitIdentity(createExecutor()) }
+            .onSuccess {
+                writeMarker()
+                Log.i(TAG, "backfilled sandbox setup to v$SETUP_VERSION")
+            }
+            .onFailure { Log.w(TAG, "sandbox backfill failed; the agent may hit it", it) }
+    }
+
+    /**
+     * Give the sandbox a git identity.
+     *
+     * Alpine ships none, so `git commit` fails with "Author identity unknown".
+     * Observed consequence on hardware: the agent burned several turns on failed
+     * commits and then **invented** an identity, writing
+     * `Assistant Bot <assistant@example.com>` into the *user's repo* local
+     * config. Committing is the product's whole point (V1_SPEC), so the
+     * environment should supply this rather than leaving the model to improvise
+     * a plausible-looking author.
+     *
+     * The value is deliberately obviously-an-agent and uses the reserved
+     * `.local` TLD: it must not read as a real person. Once Stage 1.5 wires
+     * GitHub auth, the operator's own identity should replace it, because
+     * commits that get pushed should carry the operator's name, not this.
+     */
+    private suspend fun configureGitIdentity(executor: ProotExecutor) {
+        val result = executor.execute(
+            "git config --global user.name '$GIT_USER_NAME' && " +
+                "git config --global user.email '$GIT_USER_EMAIL' && " +
+                "git config --global --add safe.directory '*'",
+            timeoutSeconds = 30,
+        )
+        check(result.success) { "git config failed: ${result.stderr.take(300)}" }
+    }
+
+    private fun writeMarker() {
+        markerFile.writeText(
+            "alpine=${RootfsDownloader.ALPINE_VERSION} abi=$deviceAbi setup=$SETUP_VERSION\n",
+        )
+    }
+
+    private fun readSetupVersion(): Int =
+        runCatching {
+            markerFile.readText()
+                .substringAfter("setup=", "0")
+                .trim()
+                .takeWhile(Char::isDigit)
+                .toIntOrNull() ?: 0
+        }.getOrDefault(0)
+
     private suspend fun deployWrapper(executor: ProotExecutor) {
         val wrapperDir = File(homeDir, "wrapper")
         wrapperDir.mkdirs()
@@ -226,5 +290,10 @@ class LinuxSandboxManager(
 
     private companion object {
         const val TAG = "LinuxSandboxManager"
+
+        /** Bump when setup() gains a step that existing sandboxes need backfilled. */
+        const val SETUP_VERSION = 2
+        const val GIT_USER_NAME = "Pi-Filling Agent"
+        const val GIT_USER_EMAIL = "agent@pi-filling.local"
     }
 }

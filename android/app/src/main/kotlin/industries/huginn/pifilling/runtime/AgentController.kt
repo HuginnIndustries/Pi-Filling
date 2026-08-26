@@ -90,6 +90,10 @@ class AgentController(
                 _session.value = SessionState.Failed("sandbox not provisioned")
                 return@launch
             }
+            // A sandbox provisioned by an older build never re-enters setup(),
+            // so apply any missing setup steps here — this is the point where a
+            // missing git identity would otherwise surface as a failed commit.
+            withContext(Dispatchers.IO) { sandbox.ensureCurrent() }
             try {
                 _session.value = SessionState.Connecting
                 DaemonService.start(appContext)

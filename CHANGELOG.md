@@ -101,6 +101,26 @@ dependencies, docs) drove the following.
 - Recorded that `distributionSha256Sum` is still unpinned in
   `gradle-wrapper.properties`, as a supply-chain follow-up.
 
+### Git identity in the sandbox
+
+- **Fixed: the agent could not commit.** Alpine ships no git identity, so
+  `git commit` failed with `Author identity unknown`. On hardware the agent
+  responded by inventing `Assistant Bot <assistant@example.com>` and writing it
+  into the *operator's repository* local config — the commit landed, so this
+  looked like success anywhere except `git log --format=%an`. Provisioning now
+  configures `Pi-Filling Agent <agent@pi-filling.local>` globally inside the
+  sandbox, plus `safe.directory=*` (proot maps the repo owner to root, which
+  git's ownership check otherwise rejects).
+- **Fixed: new provisioning steps never reached existing sandboxes.**
+  `SandboxState` starts `Ready` from the marker file alone, so `setup()` is not
+  called again and any step added later would silently never run. The marker now
+  carries a setup version and `ensureCurrent()` backfills from `startSession`,
+  avoiding a ~350 MB re-provision.
+- Verified on device: prompt typed in the app produced a real commit, authored by
+  the configured identity, with no local config written to the repo — and the
+  agent created and committed `memory.md` unprompted, exercising that feature on
+  hardware for the first time.
+
 ### Provider selection in the Android app
 
 - `--provider` is now reachable from Layer 1. Added `AgentProvider`, mirroring the
