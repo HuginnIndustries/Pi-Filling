@@ -100,6 +100,35 @@ jobs:
       - name: Hermetic spike driver (Q1/Q2/Q3)
         run: npm run spike
 
+  android-build:
+    name: android · assembleDebug
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v7
+      # JDK 17 specifically: Kotlin 2.0.21 refuses to run on Java 25 with an
+      # opaque "* What went wrong: 25.0.4", and jvmToolchain(17) does not help
+      # because it is the daemon JVM that has to be old enough. See
+      # android/README.md.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      # The scaffold had never been compiled before this job existed, so a
+      # broken Kotlin change could land unnoticed — the same blind spot that let
+      # a breaking dependency bump report green for spike-host-alpine.
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
   shell-lint:
     name: proot-bootstrap · shellcheck
     runs-on: ubuntu-latest

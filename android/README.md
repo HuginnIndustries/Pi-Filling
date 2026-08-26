@@ -57,14 +57,40 @@ android/
 
 ## Building
 
-This scaffold ships the Gradle wrapper *config* but not the `gradle-wrapper.jar`
-binary. Generate the wrapper once (or just open the `android/` folder in Android
-Studio, which does it for you):
+The Gradle wrapper is committed, so a fresh clone builds with no system Gradle:
 
 ```sh
 cd android
-gradle wrapper --gradle-version 8.10.2   # needs a system Gradle once
-./gradlew assembleDebug                   # thereafter
+./gradlew assembleDebug
+```
+
+**Requires JDK 17.** Kotlin 2.0.21 cannot run on Java 25, and the failure is
+opaque — Kotlin's bundled IntelliJ `JavaVersion.parse` rejects a version string
+it predates, so Gradle reports only:
+
+```
+* What went wrong:
+25.0.4
+```
+
+That is not AGP and not Gradle (Gradle 8.10.2 runs on Java 25 fine), which is
+what makes it confusing. Note that `jvmToolchain(17)` does **not** rescue you:
+it provisions a JDK for *compilation*, while the JVM running the Gradle daemon
+is the one that has to be old enough. Current distros are dropping older JDKs —
+Fedora 44 packages nothing below 25 — so you may need a JDK 17 from Adoptium.
+
+Keep it out of the repo: `JAVA_HOME` per shell, or `org.gradle.java.home` in
+`~/.gradle/gradle.properties`, never the committed `gradle.properties`.
+
+```sh
+JAVA_HOME=/path/to/jdk-17 ./gradlew assembleDebug
+```
+
+The Android SDK path comes from `android/local.properties` (gitignored), or
+`ANDROID_HOME`:
+
+```sh
+echo "sdk.dir=$HOME/Android/Sdk" > android/local.properties
 ```
 
 `copyWrapperAssets` (a `preBuild` dependency) copies `node-wrapper/{src,
@@ -99,14 +125,17 @@ in code and tracked against the roadmap:
   sandbox*; cloning a GitHub repo over HTTPS with a PAT and pushing back is not
   wired yet. The agent's `bash` tool can run `git` once a repo + credentials are
   present.
-- **No `gradle-wrapper.jar`** committed (generate as above).
 - **Launcher icon** is a placeholder vector (`ic_launcher_foreground.xml`).
 - **Compose UI is minimal** — single-session chat. Tool-call/diff rendering,
   cost meter, and run history are Stage 1.4/1.5.
 - **Version pins are conservative** (AGP 8.7.3 / Kotlin 2.0.21 / compileSdk 35);
   bump deliberately. Kai itself runs newer (see KAI_PATTERNS.md).
-- **Not yet tested on device.** No instrumented tests for proot exec or rootfs
-  extraction yet; add them once the native libs build on a dev machine.
+- **Not yet tested on device.** The app compiles and packages (CI runs
+  `assembleDebug` on every push), but nothing here has been installed or run on
+  real hardware. No instrumented tests for proot exec or rootfs extraction yet.
+- **`distributionSha256Sum` is not pinned** in `gradle-wrapper.properties`.
+  Worth adding for supply-chain hardening; it needs the checksum Gradle
+  publishes alongside the 8.10.2 distribution.
 
 ## Security posture
 
