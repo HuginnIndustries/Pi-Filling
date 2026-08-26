@@ -55,8 +55,13 @@ jobs:
       # npm ci already fails if package.json and the lockfile disagree, so this
       # doubles as a lockfile-in-sync check.
       - run: npm ci
-      - name: Audit production deps (fail on high+)
-        run: npm audit --omit=dev --audit-level=high
+      # Not a bare `npm audit --audit-level=high`: pi-coding-agent ships an
+      # npm-shrinkwrap.json that pins vulnerable transitives out of reach of
+      # consumer overrides. The gate allowlists exactly those, with a written
+      # reachability argument each, and still fails on anything new or critical.
+      # See scripts/audit-gate.mjs and SECURITY.md.
+      - name: Audit production deps (allowlisted gate)
+        run: npm run audit
 
   wrapper-docker:
     name: node-wrapper · Alpine/musl image

@@ -60,6 +60,43 @@ stated plainly so operators aren't surprised:
   (not instructions) with delimiter-breakout neutralization. This reduces, but
   does not eliminate, prompt-injection risk from a compromised synced file.
 
+## Known dependency advisories
+
+`npm audit --omit=dev` reports advisories against this tree that we cannot
+patch downstream, and we would rather state that plainly than hide it behind a
+loosened CI threshold.
+
+**Why they cannot be patched here.** `@earendil-works/pi-coding-agent` publishes
+an `npm-shrinkwrap.json`. npm treats a dependency's shrinkwrap as authoritative
+for that subtree, so the versions pinned inside it are not reachable by consumer
+`overrides` or by editing our own lockfile. Both were attempted; npm records the
+override edge while still installing the pinned version, and the result varies
+by install path. The advisories retire when the agent stack moves past 0.78.x,
+which is a migration rather than a version bump: 0.84.x moves `getModel` to
+`getBuiltinModel` in `@earendil-works/pi-ai/providers/all` and requires an
+explicit `streamFn` when constructing an `Agent`.
+
+**What is accepted, and why each is not reachable in this wrapper.** The wrapper
+only ever selects the `anthropic` provider (`getModel("anthropic", ...)`), so the
+provider SDKs that carry most of these advisories are installed but never
+invoked.
+
+| Package | Severity | Why it is not reachable here |
+|---|---|---|
+| `undici` | high | HTTP client for the provider SDKs. The advisories are in cookie, cache, SOCKS5-proxy and WebSocket-client paths; the wrapper makes plain Anthropic API calls and drives none of them. |
+| `ws` | high | Pulled in by the `@google/genai`, `@mistralai` and `openai` SDKs. No WebSocket is ever opened, because those providers are never selected. |
+| `protobufjs` | high | Reached only through the AWS/Bedrock provider path. The wrapper does not use Bedrock, so no `.proto` is parsed. |
+| `brace-expansion` | high | Glob-pattern DoS. Patterns originate in the agent's own tool calls against a repo the operator deliberately pointed it at — a trust boundary this document already describes as operator-owned. |
+| `@earendil-works/pi-coding-agent` | moderate | Loads project-local extensions without prompting. Same operator-owned trust boundary as the `bash` tool above: treat any repo you point the agent at as code you are choosing to run. |
+
+**How this is enforced.** CI does not run a bare `npm audit --audit-level=high`.
+It runs [`node-wrapper/scripts/audit-gate.mjs`](./node-wrapper/scripts/audit-gate.mjs),
+which allowlists exactly the packages above and still fails the build on any
+high advisory outside that list, on any critical advisory even for an
+allowlisted package, and warns when an allowlist entry has gone stale so the
+list gets pruned rather than accumulating. Adding an entry requires writing the
+reachability argument next to it and updating this table.
+
 ## Cryptographic material in the repo
 
 There is none and there should be none. The repo's gitignore excludes
