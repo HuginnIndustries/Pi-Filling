@@ -5,6 +5,9 @@ locked before we open the door to wider contributions. **External pull
 requests are not being accepted yet.** We'll update this file when that
 changes.
 
+Participation is governed by our
+[Code of Conduct](./CODE_OF_CONDUCT.md).
+
 In the meantime, the most useful contributions are:
 
 - **Issues.** Bug reports, design questions, scope challenges, comparisons
