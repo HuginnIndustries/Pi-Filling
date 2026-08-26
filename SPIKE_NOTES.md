@@ -1,7 +1,7 @@
 # Spike Notes — host-Alpine, Track A
 
 **Date:** 2026-05-09
-**Branch:** `claude/spike-pi-agent-android-NugAe` (historical; this work now lives on `main`)
+**Branch:** originally a separate spike branch, since merged into `main` and deleted; these commits are in `main`'s history
 **Workdir:** `spike-host-alpine/`
 **Status:** all three empirical questions answered. Track A is viable.
 
@@ -47,7 +47,7 @@ The signal lives on `Agent.activeRun.abortController` (`agent.ts:288-290`) and i
 
 ## Q3-real — abort during a real Anthropic stream
 
-**Pass.** Driver constructs an `Agent` with `getModel("anthropic", "claude-haiku-4-5-20251001")` (since renamed `getBuiltinModel`; see the CHANGELOG's 0.84.x migration) and `getApiKey: () => process.env.ANTHROPIC_API_KEY`, prompts "Count from 1 to 200, one per line", then waits until 5 `text_delta` events have been observed before calling `agent.abort()`. Observed:
+**Pass.** Driver constructs an `Agent` with `getModel("anthropic", "claude-haiku-4-5-20251001")` (since renamed `getBuiltinModel`, and `Agent` now also takes an explicit `streamFn`; see the CHANGELOG's 0.84.x migration) and `getApiKey: () => process.env.ANTHROPIC_API_KEY`, prompts "Count from 1 to 200, one per line", then waits until 5 `text_delta` events have been observed before calling `agent.abort()`. Observed:
 
 - `text_deltas_seen: 5` — the SSE stream was demonstrably open and feeding tokens.
 - `text_chars_received_before_abort: 419` — we'd partially streamed the count.
