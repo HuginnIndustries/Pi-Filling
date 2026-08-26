@@ -94,24 +94,38 @@ shipped with a public repo.
 
 #### Changed — dependencies
 
-- Patch-bumped the three `@earendil-works` packages `0.78.0` -> `0.78.1` in
-  lockstep, dropping production advisories from 8 (2 low, 6 high) to 5
-  (1 moderate, 4 high). Suite stays green at 23/23.
+- The three `@earendil-works` packages went `0.78.0` -> `0.78.1` (patch, in
+  lockstep) and then to `0.84.3` with the API migration described under
+  Security below. Suite green at 23/23 throughout; Q1/Q2/Q3 re-verified.
 
 #### Security
 
-- **Documented the residual dependency advisories** rather than hiding them.
-  `pi-coding-agent` publishes an `npm-shrinkwrap.json`, which npm treats as
-  authoritative for that subtree, so the vulnerable transitives it pins
-  (`undici`, `ws`, `protobufjs`, `brace-expansion`) are unreachable by consumer
-  `overrides` or lockfile edits — both were tried. `SECURITY.md` now carries a
-  per-package reachability analysis (the wrapper only ever selects the
-  `anthropic` provider, so the SDKs carrying most of these are installed but
-  never invoked) and the retirement condition.
-- Replaced CI's `npm audit --audit-level=high` — which could not pass — with
-  `node-wrapper/scripts/audit-gate.mjs`. It allowlists exactly the packages
-  above, each with a written argument, and still fails on any high outside that
-  list, on any critical even when allowlisted, and warns on stale entries.
+- **Migrated the agent stack to `0.84.3`, taking production advisories from 5
+  (4 high) to zero.** The `0.78.x` line could not be patched downstream:
+  `pi-coding-agent` shipped an `npm-shrinkwrap.json`, and npm treats a
+  dependency's shrinkwrap as authoritative for that subtree, so the vulnerable
+  transitives it pinned (`undici`, `ws`, `protobufjs`, `brace-expansion`) were
+  unreachable by consumer `overrides` or lockfile edits — both were tried, and
+  npm records the override edge while installing the pinned version anyway.
+  The upgrade was the only real fix, and it was a breaking API migration:
+  - `getModel` → `getBuiltinModel`, from `@earendil-works/pi-ai/providers/all`.
+  - `pi-agent-core` is now provider-agnostic and ships no default stream
+    function, so `Agent` requires an explicit `streamFn`. Supplied
+    `streamSimple` from `pi-ai/compat` — the same bridge `pi-coding-agent`'s own
+    SDK installs via `setDefaultStreamFn`, passed explicitly rather than relying
+    on that import side effect.
+  - Applied to `node-wrapper/` and both key-requiring spike drivers.
+  - The key-handling guarantee is unchanged and re-verified: `Agent.getApiKey`
+    still exists in `0.84.x` and still hands the value to `streamFn` as
+    `options.apiKey`, so the key never transits `process.env`. Spike Q2 asserts
+    exactly this and passes.
+- Replaced CI's `npm audit --audit-level=high` with
+  `node-wrapper/scripts/audit-gate.mjs`. Its allowlist is now **empty** — there
+  is nothing to except. It is kept because the failure mode is structural: an
+  upstream can pin a vulnerable transitive out of reach again, and the response
+  should be a documented per-package exception rather than lowering the
+  threshold for everything. Fails on any high or critical outside the allowlist,
+  on a critical even when allowlisted, and warns on stale entries.
 - Audited all 21 commits of history before publication: no credentials in any
   of the 150 blobs, no sensitive filenames, nothing added-then-deleted.
 
@@ -121,7 +135,9 @@ shipped with a public repo.
   removed an export its drivers use passed every check while breaking them at
   import time. A Dependabot PR bumping that directory to `0.84.2` did exactly
   that and showed green — `getModel` moves out of `@earendil-works/pi-ai`'s main
-  entry point, and `driver-e2e.mjs` and `driver-extras.mjs` both import it.
+  entry point, and `driver-e2e.mjs` and `driver-extras.mjs` both import it. (The
+  migration has since been done, so the bump is now taken rather than blocked;
+  the check is what made the breakage visible in the first place.)
 - Added a `spike-api-contract` CI job. Two of the three drivers need a real API
   key and cannot run in CI, so `scripts/check-api.mjs` asserts their **import
   contract** instead: it reads the named imports each driver takes from an

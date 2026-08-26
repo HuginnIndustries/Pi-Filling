@@ -25,7 +25,12 @@
 // verification fails.
 
 import { Agent } from "@earendil-works/pi-agent-core";
-import { getModel } from "@earendil-works/pi-ai";
+// pi-ai 0.84 split its surface: the model catalog moved to providers/all as
+// getBuiltinModel, and pi-agent-core no longer ships a default stream
+// function, so Agent needs an explicit streamFn (pi-ai/compat.streamSimple
+// dispatches by provider — the same bridge pi-coding-agent uses).
+import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
+import { streamSimple } from "@earendil-works/pi-ai/compat";
 import { createCodingTools } from "@earendil-works/pi-coding-agent";
 import { execSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -60,7 +65,7 @@ console.error(`[setup] repo: ${repoPath}`);
 console.error(`[setup] base commit: ${baseCommitSha.slice(0, 8)}`);
 
 // --- 2. Agent ---
-const model = getModel("anthropic", "claude-haiku-4-5-20251001");
+const model = getBuiltinModel("anthropic", "claude-haiku-4-5-20251001");
 if (!model) {
   console.error("model claude-haiku-4-5-20251001 not in pi-ai registry");
   process.exit(1);
@@ -80,6 +85,7 @@ const agent = new Agent({
     model,
     tools,
   },
+  streamFn: streamSimple,
   getApiKey: () => apiKey,
 });
 

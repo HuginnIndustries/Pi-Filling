@@ -367,5 +367,5 @@ the deprecated `@mariozechner/*` namespace), installed from npm and pinned to
 exact versions in `package.json`.
 
 - `@earendil-works/pi-agent-core` — the `Agent` class and event loop.
-- `@earendil-works/pi-ai` — `getModel`, the LLM client, `AgentEvent` types.
+- `@earendil-works/pi-ai` — `getBuiltinModel` (via `pi-ai/providers/all`), `streamSimple` (via `pi-ai/compat`), the LLM client, `AgentEvent` types.
 - `@earendil-works/pi-coding-agent` — `createCodingTools(cwd)` → read/write/edit/bash.

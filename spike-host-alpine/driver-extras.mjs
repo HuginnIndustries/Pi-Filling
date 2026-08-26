@@ -15,7 +15,12 @@
 // transcript (the SDK may include the key in error messages).
 
 import { Agent } from "@earendil-works/pi-agent-core";
-import { getModel } from "@earendil-works/pi-ai";
+// pi-ai 0.84 split its surface: the model catalog moved to providers/all as
+// getBuiltinModel, and pi-agent-core no longer ships a default stream
+// function, so Agent needs an explicit streamFn (pi-ai/compat.streamSimple
+// dispatches by provider — the same bridge pi-coding-agent uses).
+import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
+import { streamSimple } from "@earendil-works/pi-ai/compat";
 
 const results = {
   environment: {
@@ -72,7 +77,7 @@ const results = {
     out.skipped_reason = "ANTHROPIC_API_KEY not set in env";
   } else {
     try {
-      const model = getModel("anthropic", "claude-haiku-4-5-20251001");
+      const model = getBuiltinModel("anthropic", "claude-haiku-4-5-20251001");
       if (!model) {
         throw new Error("Model claude-haiku-4-5-20251001 not in registry");
       }
@@ -83,6 +88,7 @@ const results = {
             "You count slowly. Always reply with one integer per line. Never add explanation.",
           model,
         },
+        streamFn: streamSimple,
         getApiKey: () => apiKey,
       });
 

@@ -3,7 +3,15 @@
 // See ../DESIGN.md for protocol, responsibilities, and lifecycle contract.
 
 import { Agent } from "@earendil-works/pi-agent-core";
-import { getModel } from "@earendil-works/pi-ai";
+// pi-ai 0.84 split its surface: the static model catalog moved to
+// providers/all as getBuiltinModel, and the provider-dispatching stream
+// function stayed in the compat entry. pi-agent-core is deliberately
+// provider-agnostic and no longer ships a default stream function, so the
+// host has to supply one. pi-coding-agent's own SDK bridges this the same
+// way (it calls setDefaultStreamFn(streamSimple) from pi-ai/compat); we pass
+// it to Agent explicitly instead of relying on that import side effect.
+import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
+import { streamSimple } from "@earendil-works/pi-ai/compat";
 import { createCodingTools } from "@earendil-works/pi-coding-agent";
 import { createInterface } from "node:readline";
 import { existsSync, readFileSync, statSync } from "node:fs";
@@ -132,7 +140,7 @@ if (systemPromptOverridePath) {
 
 process.chdir(repoPath); // pi-coding-agent's bash tool inherits process.cwd()
 
-const model = getModel("anthropic", modelId);
+const model = getBuiltinModel("anthropic", modelId);
 if (!model) fatal(3, `model not in pi-ai registry: anthropic/${modelId}`);
 
 const memoryPath = resolve(repoPath, "memory.md");
@@ -171,6 +179,9 @@ const agent = new Agent({
     model,
     tools,
   },
+  streamFn: streamSimple,
+  // Agent resolves this and hands the value to streamFn as options.apiKey, so
+  // the key still never transits process.env. (Spike Q2 verified that path.)
   getApiKey: () => apiKey,
 });
 
