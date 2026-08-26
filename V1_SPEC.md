@@ -53,7 +53,8 @@ The host-Alpine spike and the wrapper Docker suite have proven the agent half of
 
 ### Single-provider posture
 
-- **Single LLM provider:** Anthropic. Initial model: `claude-haiku-4-5`. Upgrade path to Sonnet/Opus via config; not a separate code path.
+- **Single LLM provider for the shipping product:** Anthropic. Initial model: `claude-haiku-4-5`. Upgrade path to Sonnet/Opus via config; not a separate code path.
+- The wrapper additionally accepts `--provider ollama` (OpenAI-compatible, Ollama Cloud). This is a **development and testing affordance, not a v1 shipping target**: it lets the agent loop be exercised end-to-end without Anthropic spend. Anthropic remains the default and the only provider Layer 1 wires up. Adding it did not fork the code path — provider selection is a data table, and the streaming call is the same `streamSimple`.
 - **API key supplied by user; stored in app-private storage** (Keystore-backed where possible). Passed to the wrapper at run start via stdin or socket — never via persistent env vars or command args.
 
 ### Memory + git
@@ -169,6 +170,7 @@ All other prior questions are resolved (see decision log below).
 | 2026-05-09 | Inherit Kai's battery whitelist prompt | No (Kai doesn't ship it; v1 doesn't add it) |
 | 2026-05-09 | License | MIT |
 | 2026-06-02 | `@mariozechner/*` agent stack deprecated upstream | Migrate to maintained `@earendil-works/*` (pinned `0.78.0`, since moved to `0.84.3`); re-verified Q1–Q3 + wrapper suite. See CHANGELOG. |
+| 2026-08-26 | Verifying the live agent loop required real spend against Anthropic | Added `--provider` with an OpenAI-compatible `ollama` entry for development only; Anthropic stays the default and the v1 target. Verified end-to-end on Ollama Cloud: tool call + correct answer, 715 tokens. |
 | 2026-08-26 | `0.78.x` pinned vulnerable transitives via an upstream `npm-shrinkwrap.json`, unreachable by `overrides` | Migrate to `0.84.3`: `getModel` → `getBuiltinModel` (`pi-ai/providers/all`), and `Agent` now needs an explicit `streamFn` (`pi-ai/compat.streamSimple`). Production advisories 5 → 0; Q1–Q3 + 23/23 wrapper suite re-verified. |
 | 2026-06-02 | API key via env var (spike expedient) | Keep env *delivery* at spawn but scrub from `process.env` immediately after capture so it can't reach the `bash` tool or pi-ai's env fallback; non-env handshake still the longer-term goal. |
 

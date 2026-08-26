@@ -152,7 +152,7 @@ noise (just log + ignore).
 The wrapper also emits these synthetic events that aren't part of pi-agent-core:
 
 ```jsonc
-{"event": "wrapper_ready", "data": {"protocolVersion": 1, "model": "...", "repoPath": "...", "hasMemory": false}}
+{"event": "wrapper_ready", "data": {"protocolVersion": 1, "provider": "...", "model": "...", "repoPath": "...", "hasMemory": false}}
 ```
 
 Emitted exactly once after the agent is constructed and before any request
@@ -168,23 +168,45 @@ Emitted when the wrapper itself errors — bad config, unhandled exception,
 provider auth failure that bubbled up out of the loop, etc. Doesn't
 necessarily mean the wrapper is dying; check the next event.
 
+## Providers
+
+v1 ships against **Anthropic** (see V1_SPEC.md); it is the default and the only
+provider the product targets. `--provider` exists so the agent loop can be
+exercised against a cheaper or self-hosted endpoint during development without
+disturbing the Anthropic path.
+
+| Provider | API shape | Base URL | Key env | Model validation |
+|---|---|---|---|---|
+| `anthropic` | `anthropic-messages` | `https://api.anthropic.com` | `ANTHROPIC_API_KEY` | Checked at startup against pi-ai's builtin catalog; unknown id exits 3 |
+| `ollama` | `openai-completions` | `https://ollama.com/v1` | `OLLAMA_API_KEY` | Not pre-validated — Ollama Cloud has no builtin catalog entry, so a bad id surfaces as a `wrapper_error` on first prompt |
+
+A pi-ai `Model` is plain data (`id`, `api`, `provider`, `baseUrl`, limits), and
+`streamSimple` dispatches on `model.api`. That is why a provider outside pi-ai's
+builtin catalog can be described inline rather than requiring a pi-ai change.
+
+The `ollama` entry declares conservative `contextWindow`/`maxTokens` floors
+rather than per-model true limits, because those vary by model on Ollama Cloud
+and there is no catalog to read them from.
+
 ## CLI
 
 ```
-node src/wrapper.mjs --repo <repoPath> [--model <id>] [--system-prompt <path>]
+node src/wrapper.mjs --repo <repoPath> [--provider <name>] [--model <id>] [--system-prompt <path>]
 ```
 
 | Flag | Meaning | Default |
 |---|---|---|
 | `--repo` | Absolute path to the bound git repository. Must exist; will not be created. | required |
-| `--model` | Anthropic model id known to `pi-ai`'s registry. | `claude-haiku-4-5-20251001` |
+| `--provider` | `anthropic` or `ollama`. See Providers below. | `anthropic` |
+| `--model` | Model id. For `anthropic`, must be known to `pi-ai`'s builtin catalog. For `ollama`, any Ollama Cloud model id. | provider's default |
 | `--system-prompt` | Path to a file whose contents replace the default base prompt. The file's contents are used verbatim; memory.md injection (if any) is appended after. | none (use built-in default) |
 
 ### Environment
 
 | Var | Meaning | Required |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | API key used by `getApiKey` for every LLM call | yes |
+| `ANTHROPIC_API_KEY` | Key for `--provider anthropic`, used by `getApiKey` for every LLM call | yes, for that provider |
+| `OLLAMA_API_KEY` | Key for `--provider ollama` | yes, for that provider |
 | `WRAPPER_LOG_LEVEL` | `silent` / `error` / `info` / `debug` for stderr verbosity | `info` |
 
 ## Running standalone
@@ -226,9 +248,11 @@ accounting** in v1 (cost metering is a Stage 1.5 item — see ROADMAP).
 
 Common symptoms:
 
-- **Exits 1 immediately, "ANTHROPIC_API_KEY is required"** — the key env var
-  wasn't passed to the child. (Layer 1 sets it at spawn; it's scrubbed from
-  `process.env` right after capture.)
+- **Exits 1 immediately, "&lt;PROVIDER&gt;_API_KEY is required"** — the key env var for
+  the selected provider wasn't passed to the child. Each provider reads its own
+  variable; an `ANTHROPIC_API_KEY` will not satisfy `--provider ollama`.
+  (Layer 1 sets it at spawn; every provider key is scrubbed from `process.env`
+  right after capture.)
 - **Exits 3, "model not in pi-ai registry"** — bad `--model`; use a model id the
   pinned pi-ai knows (default `claude-haiku-4-5-20251001`).
 - **A `wrapper_error` event with `phase:"run"`** — the run ended in a provider or

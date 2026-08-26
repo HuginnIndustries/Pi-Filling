@@ -27,12 +27,18 @@ export const RPC_TIMEOUT_MS = 30_000;
 
 export const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function childEnv({ env = {}, logLevel = "silent", withKey = true } = {}) {
+// Every provider key the wrapper understands. Scrubbing all of them matters
+// more than it looks: without it, a developer machine with a real key exported
+// for one provider could have a test make a real, billed API call.
+const PROVIDER_KEY_ENVS = ["ANTHROPIC_API_KEY", "OLLAMA_API_KEY"];
+
+function childEnv({ env = {}, logLevel = "silent", withKey = true, keyEnv = "ANTHROPIC_API_KEY" } = {}) {
   const base = { ...process.env };
   // Force a fake key regardless of the outer env so the suite stays hermetic
-  // even on a machine that has a real key exported.
-  delete base.ANTHROPIC_API_KEY;
-  if (withKey) base.ANTHROPIC_API_KEY = "fake-offline-key";
+  // even on a machine that has real keys exported.
+  for (const name of PROVIDER_KEY_ENVS) delete base[name];
+  delete base.ANTHROPIC_OAUTH_TOKEN;
+  if (withKey) base[keyEnv] = "fake-offline-key";
   return { ...base, WRAPPER_LOG_LEVEL: logLevel, ...env };
 }
 

@@ -69,6 +69,45 @@ dependencies, docs) drove the following.
   speaking the Layer 3 stdio JSONL protocol. **Scaffold only — not yet built on a
   device.** See `android/README.md` and `android/KAI_PATTERNS.md`.
 
+### Provider support
+
+#### Added — `--provider` on the node wrapper
+
+- The wrapper accepted only Anthropic, so verifying the live agent loop meant
+  spending against Anthropic. It now takes `--provider anthropic|ollama`, with
+  `anthropic` as the default and the only provider Layer 1 wires up. V1_SPEC
+  records this as a development affordance, **not a v1 shipping target**.
+- No forked code path: a pi-ai `Model` is plain data and `streamSimple`
+  dispatches on `model.api`, so provider selection is a small data table.
+  `ollama` describes an `openai-completions` model against
+  `https://ollama.com/v1`; `anthropic` still resolves through pi-ai's builtin
+  catalog and still exits 3 on an unknown model id.
+- Each provider reads its own key variable — an `ANTHROPIC_API_KEY` does not
+  satisfy `--provider ollama`. `wrapper_ready` now reports `provider` alongside
+  `model` (an additive field; protocol stays v1).
+- **Verified end-to-end against a live provider**, which had been the standing
+  gap since the 0.84.3 migration: the agent read a file via the `read` tool and
+  answered correctly in 715 tokens, exit 0. This exercises the real streaming
+  path and the `getApiKey` → `options.apiKey` handoff through the new
+  `streamFn`. Note it exercises `openai-completions`; the `anthropic-messages`
+  path still has no live-call verification in CI.
+
+#### Security
+
+- The wrapper now scrubs **every** known provider key from `process.env` after
+  capture, not just the one in use. The `bash` tool should never see a
+  credential for a provider the run isn't talking to.
+- The test harness scrubs all provider keys from the inherited environment.
+  Without this, a developer machine with a real key exported could have the
+  suite make a real, billed API call — it previously scrubbed only
+  `ANTHROPIC_API_KEY`.
+
+#### Tests
+
+- 23 -> 25. Added: unknown `--provider` exits 1 and names the valid ones;
+  `--provider ollama` rejects an `ANTHROPIC_API_KEY` and demands
+  `OLLAMA_API_KEY`. Smoke now asserts `wrapper_ready.provider`.
+
 ### Public-readiness pass
 
 Consolidating the outstanding branches and closing the gaps that would have

@@ -42,6 +42,31 @@ describe("startup exit codes", () => {
   );
 
   test(
+    "unknown --provider exits 1 and lists the valid ones",
+    async () => {
+      const { code, stderr } = await runWrapper(["--repo", dir, "--provider", "nope"], { logLevel: "error" });
+      assert.equal(code, 1);
+      assert.match(stderr, /unknown --provider/);
+      assert.match(stderr, /anthropic/);
+    },
+    { timeout: HOOK_TIMEOUT_MS },
+  );
+
+  test(
+    "--provider ollama requires OLLAMA_API_KEY, not ANTHROPIC_API_KEY",
+    async () => {
+      // withKey seeds ANTHROPIC_API_KEY, which must not satisfy a different
+      // provider: each provider reads its own env var.
+      const { code, stderr } = await runWrapper(["--repo", dir, "--provider", "ollama"], {
+        logLevel: "error",
+      });
+      assert.equal(code, 1);
+      assert.match(stderr, /OLLAMA_API_KEY is required/);
+    },
+    { timeout: HOOK_TIMEOUT_MS },
+  );
+
+  test(
     "missing --repo exits 1",
     async () => {
       const { code } = await runWrapper([], { logLevel: "error" });

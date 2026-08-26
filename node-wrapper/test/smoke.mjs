@@ -63,6 +63,8 @@ describe("wrapper protocol — no memory.md", () => {
     assert.equal(ready.data.repoPath, dir);
     assert.equal(ready.data.hasMemory, false);
     assert.match(ready.data.model, /^claude-/);
+    // The default provider stays anthropic; V1_SPEC scopes v1 to it.
+    assert.equal(ready.data.provider, "anthropic");
   });
 
   test("wrapper_ready is the first event and emitted exactly once", () => {

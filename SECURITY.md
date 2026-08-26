@@ -39,11 +39,13 @@ Out of scope (please report upstream):
 These are the security-relevant realities of the code as it ships today (pre-1.0),
 stated plainly so operators aren't surprised:
 
-- **API key delivery.** Layer 1 passes the Anthropic key to the wrapper via the
-  `ANTHROPIC_API_KEY` environment variable at process spawn. The wrapper captures
-  it into a closure on startup and then **deletes it from `process.env`** (along
-  with `ANTHROPIC_OAUTH_TOKEN`), so it does not propagate to the agent's `bash`
-  tool children or to pi-ai's env-var auth fallback. The key is never written to
+- **API key delivery.** Layer 1 passes the provider key to the wrapper via that
+  provider's environment variable at process spawn (`ANTHROPIC_API_KEY` by
+  default). The wrapper captures it into a closure on startup and then
+  **deletes every known provider key from `process.env`** — not just the one in
+  use — along with `ANTHROPIC_OAUTH_TOKEN`, so no credential propagates to the
+  agent's `bash` tool children or to pi-ai's env-var auth fallback. The `bash`
+  tool has no business seeing a key for a provider this run is not even using. The key is never written to
   disk by the wrapper. On Android the key is stored encrypted at rest via a
   hardware-bound AndroidKeyStore AES-256-GCM key (`SecureKeyStore`). The
   spec's longer-term goal is a non-env key handshake (stdin/socket); the env path

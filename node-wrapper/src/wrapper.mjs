@@ -19,7 +19,44 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 const PROTOCOL_VERSION = 1;
-const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
+const DEFAULT_PROVIDER = "anthropic";
+
+// Supported providers. Anthropic is what v1 ships against (V1_SPEC.md); the
+// OpenAI-compatible entries exist so the agent loop can be exercised against a
+// cheaper or self-hosted endpoint without touching the Anthropic path.
+//
+// A pi-ai Model is plain data, so a provider outside pi-ai's builtin catalog is
+// described directly rather than looked up. `streamSimple` dispatches on
+// `model.api`, and "openai-completions" is the chat-completions shape that
+// Ollama Cloud serves.
+const PROVIDERS = {
+  anthropic: {
+    keyEnv: "ANTHROPIC_API_KEY",
+    defaultModel: "claude-haiku-4-5-20251001",
+    // Anthropic models come from pi-ai's builtin catalog, so an unknown id is
+    // rejected here at startup rather than at first prompt.
+    resolveModel: (id) => getBuiltinModel("anthropic", id),
+  },
+  ollama: {
+    keyEnv: "OLLAMA_API_KEY",
+    defaultModel: "gpt-oss:120b",
+    // Not in pi-ai's catalog, so any id is accepted and an unknown one surfaces
+    // as a provider error on the first prompt. Context/token limits vary per
+    // model on Ollama Cloud; these are conservative floors, not the true caps.
+    resolveModel: (id) => ({
+      id,
+      name: id,
+      api: "openai-completions",
+      provider: "ollama",
+      baseUrl: "https://ollama.com/v1",
+      reasoning: false,
+      input: ["text"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: 128000,
+      maxTokens: 32000,
+    }),
+  },
+};
 const MIN_NODE_MAJOR = 22;
 const FLUSH_TIMEOUT_MS = 2000;
 const DEFAULT_BASE_PROMPT = `You are a coding agent operating inside a single git repository.
@@ -28,8 +65,10 @@ You also own a file named memory.md in the repository — read it when relevant,
 Complete the user's task without asking clarifying questions when the intent is reasonably clear, then stop.`;
 
 const USAGE =
-  "Usage: node src/wrapper.mjs --repo <path> [--model <id>] [--system-prompt <file>]\n" +
-  "Env:   ANTHROPIC_API_KEY (required), WRAPPER_LOG_LEVEL (silent|error|info|debug)\n";
+  "Usage: node src/wrapper.mjs --repo <path> [--provider <name>] [--model <id>] [--system-prompt <file>]\n" +
+  "       --provider  anthropic (default) | ollama\n" +
+  "Env:   <PROVIDER>_API_KEY (required; ANTHROPIC_API_KEY or OLLAMA_API_KEY),\n" +
+  "       WRAPPER_LOG_LEVEL (silent|error|info|debug)\n";
 
 // ---- logging --------------------------------------------------------------
 
@@ -87,6 +126,7 @@ try {
     options: {
       repo: { type: "string" },
       model: { type: "string" },
+      provider: { type: "string" },
       "system-prompt": { type: "string" },
       help: { type: "boolean", short: "h" },
     },
@@ -101,15 +141,24 @@ if (args.values.help) {
   process.exit(0);
 }
 
-const apiKey = process.env.ANTHROPIC_API_KEY;
-if (!apiKey) fatal(1, "ANTHROPIC_API_KEY is required");
+const providerName = args.values.provider ?? DEFAULT_PROVIDER;
+const provider = PROVIDERS[providerName];
+if (!provider) {
+  fatal(1, `unknown --provider: ${providerName} (expected one of: ${Object.keys(PROVIDERS).join(", ")})`);
+}
+
+const apiKey = process.env[provider.keyEnv];
+if (!apiKey) fatal(1, `${provider.keyEnv} is required`);
 
 // Capture the key into a closure, then scrub it from the environment. The
 // agent's bash tool spawns shells with {...process.env}, and pi-ai has an
 // env-var auth fallback — both would otherwise see the key. After this the only
 // path the key flows is the getApiKey() callback below. (See ARCHITECTURE.md
 // "Authentication"; a stdin/socket key handshake is the Layer-1 follow-up.)
-delete process.env.ANTHROPIC_API_KEY;
+//
+// Every provider's key is scrubbed, not just the one in use: the bash tool has
+// no business seeing a credential for a provider this run isn't even talking to.
+for (const p of Object.values(PROVIDERS)) delete process.env[p.keyEnv];
 delete process.env.ANTHROPIC_OAUTH_TOKEN;
 
 const repoArg = args.values.repo;
@@ -120,7 +169,7 @@ if (!existsSync(repoPath) || !statSync(repoPath).isDirectory()) {
   fatal(2, `--repo path does not exist or is not a directory: ${repoPath}`);
 }
 
-const modelId = args.values.model ?? DEFAULT_MODEL;
+const modelId = args.values.model ?? provider.defaultModel;
 
 // Read the optional system-prompt override up front, with a clear error rather
 // than an uncaught ENOENT/EACCES stack trace, and resolve the path relative to
@@ -140,8 +189,8 @@ if (systemPromptOverridePath) {
 
 process.chdir(repoPath); // pi-coding-agent's bash tool inherits process.cwd()
 
-const model = getBuiltinModel("anthropic", modelId);
-if (!model) fatal(3, `model not in pi-ai registry: anthropic/${modelId}`);
+const model = provider.resolveModel(modelId);
+if (!model) fatal(3, `model not in pi-ai registry: ${providerName}/${modelId}`);
 
 const memoryPath = resolve(repoPath, "memory.md");
 let composedSystemPrompt = basePrompt;
@@ -385,8 +434,9 @@ process.on("SIGTERM", beginShutdown);
 
 pushEvent("wrapper_ready", {
   protocolVersion: PROTOCOL_VERSION,
+  provider: providerName,
   model: model.id,
   repoPath,
   hasMemory,
 });
-log.info(`wrapper_ready (model=${model.id} repo=${repoPath})`);
+log.info(`wrapper_ready (provider=${providerName} model=${model.id} repo=${repoPath})`);
