@@ -57,6 +57,14 @@ stated plainly so operators aren't surprised:
   and the OS process boundary, not on confining the agent. Treat any repo you
   point the agent at, and any `memory.md` it loads, as code you are choosing to
   run.
+- **Wrapper stderr is forwarded to logcat.** Layer 1 logs the wrapper's stderr
+  under the `wrapper` tag. The wrapper scrubs credentials from `process.env`, but
+  its diagnostics echo the CLI arguments it was given — for example the offending
+  path in `--repo path does not exist`. A credential mistyped into a UI field
+  that becomes an argument therefore reaches the device log. Observed in testing
+  (recorded in `android/VERIFICATION.md`); the log buffer is volatile and
+  clearing it removes the value, and nothing is persisted to storage. Release
+  builds should stop forwarding wrapper stderr, or redact it.
 - **`memory.md` is untrusted input.** It is git-synced across devices, so the
   wrapper folds it into the system prompt framed as untrusted reference data
   (not instructions) with delimiter-breakout neutralization. This reduces, but

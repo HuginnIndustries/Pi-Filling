@@ -7,6 +7,75 @@ from assumption.
 
 Device serials and any device content are deliberately excluded from this file.
 
+## 2026-08-26 — model comparison, and a missing shell
+
+### A sixth bug: the sandbox has no bash
+
+The agent is told "You have read, write, edit, and bash tools. The bash tool runs
+git directly", and the tool is named `bash` — but provisioning installed only
+`nodejs npm git`, and Alpine's `/bin/sh` is busybox. Models reasonably emitted
+bash-only syntax and got:
+
+```
+sh: bash: not found                                  (exit 127)
+hello.sh: line 12: syntax error: bad substitution    (exit 2)
+```
+
+Seen across two different models, so it is an environment defect rather than one
+model's quirk. Cheaper to make the environment match what the agent is told it
+has than to teach every model that the "bash tool" is not bash. `bash` added to
+the provisioning package set (`SETUP_VERSION` 3, backfilled into existing
+sandboxes).
+
+### Same task, same starting repo, one run each
+
+Prompt: create `hello.sh` with a greeting function, then stage and commit it.
+Repo reset to an identical single-commit state before every run. Tool-call and
+error counts come from the wrapper's own event stream.
+
+| Model | Tool calls | Tool errors | Tokens | Result |
+|---|---:|---:|---:|---|
+| `gpt-oss:120b` (before bash) | 8 | 0 | 1213 | committed; left `memory.md` uncommitted |
+| `minimax-m3` (before bash) | 20 | 15 | 2370 | committed, after heavy flailing |
+| `deepseek-v4-flash:0731` (before bash) | 6 | 0 | 1480 | committed cleanly |
+| `minimax-m3` (after bash) | 6 | 0 | 1513 | committed cleanly |
+| `gpt-oss:120b` (after bash) | 8 | 5 → 1 | ~1200 | committed; errors unrelated to bash |
+
+**What this does and does not show.** The `bash: not found` / `bad substitution`
+class is gone after the fix — zero bash-related errors in any post-fix run.
+`minimax-m3` improved sharply and repeatably (20/15 → 6/0). `gpt-oss:120b` is
+noisy run to run (0, then 5, then 1 errors) and its post-fix failures are a
+different, benign class — `edit` on a `memory.md` it had not created yet
+(`ENOENT`). Single runs per model are not a benchmark; treat the ordering as
+indicative, not measured.
+
+`deepseek-v4-flash:0731` and post-fix `minimax-m3` were the cleanest at 6 calls
+and 0 errors.
+
+### A credential-exposure path worth knowing about
+
+While driving the UI, an API key was typed into the **repo path** field by
+mistake. The wrapper was then launched with `--repo <key>/root/repo` and exited 2,
+and its fatal message — which echoes the offending path — was piped to logcat by
+the app's `wrapper` log tag. So the key landed in the device log buffer.
+
+It was **not** persisted: nothing in app-private storage or the sandbox contained
+it, and clearing the log buffers removed it. But the shape of the problem is
+real and does not need an agent to trigger it: **anything typed into a field that
+becomes a wrapper CLI argument can reach logcat via the wrapper's own error
+output.** The wrapper carefully scrubs the key from `process.env`, and then the
+host logs its stderr verbatim. Worth either not forwarding wrapper stderr to
+logcat in release builds, or redacting it.
+
+### Method note
+
+The mistyped field was caused by driving the UI from coordinates captured on an
+earlier screen: selecting a provider that already had a stored key skips the key
+entry screen entirely, so the remembered "API key field" position was by then the
+repo path field. This is exactly the failure the device-verification procedure
+warns about — re-dump immediately before every gesture, never reuse coordinates
+across a state change.
+
 ## 2026-08-26 — the agent edits and commits on device
 
 The V1_SPEC workflow — "edits files, runs git operations, and commits the

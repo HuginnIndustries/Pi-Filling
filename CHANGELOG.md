@@ -101,6 +101,23 @@ dependencies, docs) drove the following.
 - Recorded that `distributionSha256Sum` is still unpinned in
   `gradle-wrapper.properties`, as a supply-chain follow-up.
 
+### bash in the sandbox
+
+- **Fixed: the agent is promised a bash tool in a sandbox with no bash.**
+  Provisioning installed `nodejs npm git`, and Alpine's `/bin/sh` is busybox, so
+  bash-only syntax failed with `sh: bash: not found` and
+  `syntax error: bad substitution`. Seen across two models, so it is an
+  environment defect, not a model quirk. `bash` is now part of the package set,
+  backfilled into existing sandboxes via `SETUP_VERSION` 3.
+- Effect, measured on device with an identical task and repo state per run:
+  `minimax-m3` went from 20 tool calls / 15 errors to 6 / 0. No post-fix run of
+  any model produced a bash-related error. `gpt-oss:120b` remains noisy run to
+  run for unrelated reasons.
+- Documented a credential-exposure path in `SECURITY.md`: the app forwards
+  wrapper stderr to logcat, and wrapper diagnostics echo CLI arguments, so a
+  credential mistyped into a field that becomes an argument can reach the device
+  log.
+
 ### Git identity in the sandbox
 
 - **Fixed: the agent could not commit.** Alpine ships no git identity, so

@@ -127,9 +127,9 @@ class LinuxSandboxManager(
             val update = executor.execute("apk update", timeoutSeconds = 60)
             check(update.success) { "apk update failed: ${update.stderr.take(500)}" }
 
-            _state.value = SandboxState.Installing("nodejs npm git")
+            _state.value = SandboxState.Installing(APK_PACKAGES)
             val add = executor.execute(
-                "apk add --no-cache nodejs npm git",
+                "apk add --no-cache $APK_PACKAGES",
                 timeoutSeconds = 180,
             )
             check(add.success) { "apk add failed: ${add.stderr.take(500)}" }
@@ -167,13 +167,38 @@ class LinuxSandboxManager(
      * exec unless there is actually work to do.
      */
     suspend fun ensureCurrent() {
-        if (!markerFile.exists() || readSetupVersion() >= SETUP_VERSION) return
-        runCatching { configureGitIdentity(createExecutor()) }
+        if (!markerFile.exists()) return
+        val have = readSetupVersion()
+        if (have >= SETUP_VERSION) return
+        runCatching {
+            val executor = createExecutor()
+            if (have < 2) configureGitIdentity(executor)
+            if (have < 3) installPackages(executor)
+        }
             .onSuccess {
                 writeMarker()
-                Log.i(TAG, "backfilled sandbox setup to v$SETUP_VERSION")
+                Log.i(TAG, "backfilled sandbox setup v$have -> v$SETUP_VERSION")
             }
             .onFailure { Log.w(TAG, "sandbox backfill failed; the agent may hit it", it) }
+    }
+
+    /**
+     * Install (or top up) the guest toolchain.
+     *
+     * `bash` is not incidental. The agent is told it has a "bash tool" and the
+     * tool is named `bash`, but Alpine ships only busybox `ash`, so models
+     * reasonably emit bash-only syntax and get:
+     *
+     *     sh: bash: not found
+     *     hello.sh: line 12: syntax error: bad substitution
+     *
+     * Observed on device across two different models. Cheaper to make the
+     * environment match what the agent is told it has than to teach every model
+     * that the "bash tool" is not bash.
+     */
+    private suspend fun installPackages(executor: ProotExecutor) {
+        val result = executor.execute("apk add --no-cache $APK_PACKAGES", timeoutSeconds = 180)
+        check(result.success) { "apk add failed: ${result.stderr.take(300)}" }
     }
 
     /**
@@ -292,7 +317,8 @@ class LinuxSandboxManager(
         const val TAG = "LinuxSandboxManager"
 
         /** Bump when setup() gains a step that existing sandboxes need backfilled. */
-        const val SETUP_VERSION = 2
+        const val SETUP_VERSION = 3
+        const val APK_PACKAGES = "nodejs npm git bash"
         const val GIT_USER_NAME = "Pi-Filling Agent"
         const val GIT_USER_EMAIL = "agent@pi-filling.local"
     }
