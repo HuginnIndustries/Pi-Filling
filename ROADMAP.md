@@ -120,7 +120,8 @@ run proved from what it did not.
   token — with the helper disabled git reports `could not read Username`, and
   with it enabled GitHub rejects a deliberately wrong token by name. **Not yet
   proved: a real push to a real GitHub repository**, which needs a real PAT.
-- **1.6 First-run UX.** ❌ not started.
+- **1.6 First-run UX.** ◐ started. The host-capability channel and speech are
+  built and device-verified; the rest of the stage is untouched.
 
 ### Deliberately out of v1
 
@@ -140,22 +141,33 @@ reviewing pleasant.
 
 ### The enabling piece
 
-- **Host-capability channel.** A reverse RPC so Layer 3 can ask Layer 1 to do
-  Android-native things. Designed in
-  [`ARCHITECTURE.md`](./ARCHITECTURE.md#the-host-capability-channel-designed-not-built);
-  not built. Everything else in this stage hangs off it, and it is the part of
-  the product with no desktop equivalent.
+- **Host-capability channel.** ✅ built (2026-08-27). A reverse RPC so Layer 3
+  can ask Layer 1 to do Android-native things — `host_request` out,
+  `host_response` back, over the framing that was already there. Layer 1 holds an
+  allow-list, so the agent may ask for a capability but can never introduce one.
+  Verified end-to-end on hardware; see
+  [`android/VERIFICATION.md`](./android/VERIFICATION.md). Everything else in this
+  stage hangs off it, and it is the part of the product with no desktop
+  equivalent.
 
 ### Voice
 
 - **Voice input needs no work.** Any Android dictation keyboard types into the
   prompt box as normal text. This is already true today.
-- **Text to speech** as the first host capability, porting the extension from
+- **Text to speech.** ✅ built (2026-08-27), ported from
   [`pi-termux-android-voice`](https://github.com/TheAmericanMaker/pi-termux-android-voice)
-  onto it — same tools and slash commands, but with a real `TextToSpeech.stop()`
-  and real chunking, both of which that project could not do from Termux.
-- **Speaking aloud defaults off**, opt-in persisted. Consequential on a phone in
-  a way it is not on a desktop.
+  onto the channel as `voice_speak` / `voice_config`, with the real
+  `TextToSpeech.stop()` and real chunking that project could not do from Termux.
+  The slash commands did not come across — they were TUI affordances, and belong
+  here as controls rather than as text commands.
+- **Speaking aloud defaults off**, opt-in persisted to device preferences. ✅ The
+  agent can read the setting and toggle auto-speak but cannot give itself a
+  voice. The switch is reachable during a session, not only before one — that
+  gap was found in device testing and closed.
+- **Auto-speak is plumbed but not yet driven.** The preference exists and the
+  agent can set it; nothing yet speaks replies automatically as they stream. That
+  is the next piece of voice work, and it needs a rule for what *not* to read
+  aloud — a diff or a file listing is not something anyone wants spoken.
 - **A mic button** is a one-tap convenience over the keyboard's own mic. Minor;
   do not mistake it for building recognition.
 - **Offline recognition via [Vosk](https://github.com/alphacep/vosk-android-demo)**
