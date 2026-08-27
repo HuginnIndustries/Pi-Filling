@@ -12,3 +12,15 @@ runs:
       output: 0
       cache_write: 0
     recorded_by: mcp-complete
+  -
+    timestamp: "2026-08-27T00:41:24.732Z"
+    phase: defect-scan
+    status: completed
+    turn_count: 0
+    tool_uses: 0
+    duration_ms: 0
+    tokens:
+      input: 0
+      output: 0
+      cache_write: 0
+    recorded_by: mcp-complete

@@ -88,3 +88,4 @@ it (with `Supersedes D<old-NNN>` in the one-liner) and update the old entry's on
 
 Appended by completion from each phase handoff's `decisions` array. The orchestrator may re-file entries into the category sections above; numbering is shared with them.
 D001 | Scoped this run to the architecture-only pipeline. The user asked for a structural read of what exists, not a port or rewrite, and codecarto_switch_pipeline can add contracts/protocols later without losing this phase. | 2026-08-27-architecture | closeouts/2026-08-27-architecture.md §Decisions Beyond Prompt (architecture)
+D002 | Ran defect-scan rather than lite or full. A development plan needs to know what is broken before it can sequence work, and contracts/protocols phases would deepen understanding without changing the plan's priorities. | 2026-08-27-defect-scan | closeouts/2026-08-27-defect-scan.md §Decisions Beyond Prompt (defect-scan)

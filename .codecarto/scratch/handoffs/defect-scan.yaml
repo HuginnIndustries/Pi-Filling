@@ -1,0 +1,92 @@
+schema_version: 1
+phase_id: defect-scan
+owner_notes:
+  - '13 findings across all six passes: 0 critical, 2 high, 6 medium, 5 low. Coverage PARTIAL.'
+  - 'Contradiction sweep against the architecture phase found one: ROADMAP.md''s stage claims contradict verified state (reports 8/8 tests where the suite is 25/25, and says 1.2c is not built when it is built, installed and running). Recorded as finding 5.2 rather than smoothed over.'
+  - 'The two high findings interact and describe one weak area: WrapperClient.call can orphan a request when the process exits during registration (3.1), no timeout exists to break the resulting hang (2.2), and the adjacent path crashes the app instead of failing the session (2.1). The wrapper-death path is the least robust part of the codebase.'
+  - 'Structural asymmetry worth acting on: the Node wrapper handles serialization failure, backpressure, EPIPE, malformed requests and unknown methods, while both high findings are in Kotlin. That tracks test coverage exactly - the wrapper has 25 tests and android/ has none.'
+  - Six earlier defects found by on-device verification this session are already fixed and are not re-listed here; this scan is static and covers what remains.
+open_questions:
+  - id: q-wrapperclient-race-repro
+    kind: runtime-test
+    description: Whether finding 3.1 is reachable in practice, and at what rate, is unmeasured. The window is between a null exitCode read and a ConcurrentHashMap insert.
+    deferred_reason: Needs a stress harness that kills the wrapper mid-request; static reading cannot establish the rate.
+  - id: q-android-test-harness
+    kind: maintainer-decision
+    description: android/ has no tests at all, which is why passes 1-3 found more there than in the wrapper. Whether to add JVM/Robolectric tests, instrumented tests, or both is a project decision.
+    deferred_reason: A scope and tooling ruling rather than a finding.
+carry_forward: []
+carry_forward_closures: []
+open_question_closures: []
+post_pipeline:
+  - id: pp-ds-1
+    kind: amendment
+    description: 'Fix 3.1: re-check exitCode after inserting into pending, or guard registration and drain with a shared lock. High.'
+  - id: pp-ds-2
+    kind: amendment
+    description: 'Fix 2.1: guard AgentController.prompt with try/catch setting SessionState.Failed, and add a CoroutineExceptionHandler to the scope as a backstop. High.'
+  - id: pp-ds-3
+    kind: amendment
+    description: 'Fix 2.2: add withTimeout to WrapperClient.call and a shorter bound to awaitReady.'
+  - id: pp-ds-4
+    kind: amendment
+    description: 'Resolve 4.1: request StrongBox with fallback and verify by attestation, or soften the hardware-bound wording in SECURITY.md.'
+  - id: pp-ds-5
+    kind: amendment
+    description: 'Fix 1.1: set onBufferOverflow = DROP_OLDEST to match the stated intent, or correct the comment.'
+  - id: pp-ds-6
+    kind: amendment
+    description: Add a cross-language check that AgentProvider.kt and the wrapper PROVIDERS table agree on ids and key env vars (finding 5.1, Convention C02).
+  - id: pp-ds-7
+    kind: amendment
+    description: 'Fix 4.2: make the memory.md delimiter guard case- and whitespace-insensitive, with a mixed-case test.'
+  - id: pp-ds-8
+    kind: amendment
+    description: Pin distributionSha256Sum (6.1) and persist provider selection (6.2).
+  - id: pp-ds-9
+    kind: spike
+    description: Stand up an Android test harness. The absence of any android/ tests is the root cause behind the severity distribution in this report.
+decisions:
+  - Ran defect-scan rather than lite or full. A development plan needs to know what is broken before it can sequence work, and contracts/protocols phases would deepen understanding without changing the plan's priorities.
+proposed_conventions:
+  - name: Every suspend call into the wrapper is guarded and bounded
+    rule: Any call site that suspends on WrapperClient must both catch WrapperProcessExitedException and impose a timeout. The wrapper is a separate process on a phone; it can die or wedge at any moment, and an unguarded call site turns that into a crash or a permanent hang.
+    evidence: Findings 2.1, 2.2 and 3.1; AgentController.prompt is the only unguarded caller and is the one users hit most.
+closeout_summary: '13 static findings across six passes (0 critical, 2 high, 6 medium, 5 low), coverage PARTIAL. Both high findings are on the wrapper-death path and interact: a request can be orphaned by a process exit during registration, no timeout breaks the resulting hang, and the adjacent path crashes rather than failing the session. The Node wrapper is markedly more defensive than the Kotlin layer, tracking the fact that it has 25 tests and android/ has none.'
+closeout_content: |
+  # Closeout - defect-scan
+
+  ## Summary
+
+  Thirteen findings, none critical, two high. Both high findings sit on the same
+  path - what happens when the wrapper process dies - and they compound:
+  `WrapperClient.call` can register a request after `onProcessExit` has already
+  drained the pending map, leaving the caller suspended forever; no timeout exists
+  anywhere to break that hang; and the adjacent call site, `AgentController.prompt`,
+  is unguarded in a scope with no exception handler, so the same failure surfaces
+  as an app crash rather than a failed session.
+
+  ## The finding behind the findings
+
+  The Node wrapper handles serialization failure, stdout backpressure, EPIPE,
+  malformed requests and unknown methods. The Kotlin layer holds both high
+  findings. That asymmetry is not about care or authorship - it tracks test
+  coverage exactly. `node-wrapper` has 25 tests; `android/` has none, and has never
+  had any. Fixing the individual rows without standing up an Android harness leaves
+  the mechanism that produced them intact.
+
+  ## Contradiction sweep
+
+  One contradiction against completed-phase state: ROADMAP.md still reports 8/8
+  tests and describes Stage 1.2c as not built or run on a device, both of which the
+  architecture phase and on-device verification contradict. Recorded as finding
+  5.2 rather than smoothed over, because a roadmap that misreports finished work
+  cannot be used to plan the unfinished work.
+
+  ## What this does not cover
+
+  No release build exists, so R8 defects are invisible. No instrumented tests
+  exist, so lifecycle defects - rotation, process death, background restore - are
+  unreachable by a static pass. The two concurrency findings are reasoned from the
+  code rather than reproduced under a race, and are marked `strong inference`
+  accordingly.

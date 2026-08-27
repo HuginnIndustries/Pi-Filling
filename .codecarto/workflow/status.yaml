@@ -1,7 +1,7 @@
 project_name: Pi-Filling
-pipeline: workflow/pipeline-architecture-only.yaml
+pipeline: workflow/pipeline-defect-scan.yaml
 current_phase: complete
-last_updated: "2026-08-27T00:25:35.245Z"
+last_updated: "2026-08-27T00:41:24.728Z"
 schema_version: 1
 phases:
   architecture:
@@ -39,9 +39,39 @@ phases:
         description: "The provider v1 ships against has never made a live call from the handset; every device run so far used openai-completions via Ollama Cloud."
         deferred_reason: "Needs a device session with an Anthropic key; the code path differs from the one already verified."
     carry_forward: []
+  defect-scan:
+    status: complete
+    owner_notes:
+      - "Completed via codecarto_complete."
+      - "Primary output: .codecarto/findings/defect-scan/defect-report.md"
+      - "Validation: PASS WITH GAPS"
+      - "13 findings across all six passes: 0 critical, 2 high, 6 medium, 5 low. Coverage PARTIAL."
+      - "Contradiction sweep against the architecture phase found one: ROADMAP.md's stage claims contradict verified state (reports 8/8 tests where the suite is 25/25, and says 1.2c is not built when it is built, installed and running). Recorded as finding 5.2 rather than smoothed over."
+      - "The two high findings interact and describe one weak area: WrapperClient.call can orphan a request when the process exits during registration (3.1), no timeout exists to break the resulting hang (2.2), and the adjacent path crashes the app instead of failing the session (2.1). The wrapper-death path is the least robust part of the codebase."
+      - "Structural asymmetry worth acting on: the Node wrapper handles serialization failure, backpressure, EPIPE, malformed requests and unknown methods, while both high findings are in Kotlin. That tracks test coverage exactly - the wrapper has 25 tests and android/ has none."
+      - "Six earlier defects found by on-device verification this session are already fixed and are not re-listed here; this scan is static and covers what remains."
+    outputs_present:
+      - findings/defect-scan/defect-report.md
+    open_questions:
+      -
+        kind: needs-maintainer-decision
+        description: "Coverage and limits name inspected scope, skipped scope, evidence basis, and blind spots."
+        deferred_reason: "All four named, but disposition is PARTIAL: Android lifecycle and release-build surfaces are unreachable without a harness that does not exist. Tracked as `q-android-test-harness`; the race's reproducibility is tracked as `q-wrapperclient-race-repro`."
+        id: oq-defect-scan-1
+      -
+        id: q-wrapperclient-race-repro
+        kind: runtime-test
+        description: "Whether finding 3.1 is reachable in practice, and at what rate, is unmeasured. The window is between a null exitCode read and a ConcurrentHashMap insert."
+        deferred_reason: "Needs a stress harness that kills the wrapper mid-request; static reading cannot establish the rate."
+      -
+        id: q-android-test-harness
+        kind: maintainer-decision
+        description: "android/ has no tests at all, which is why passes 1-3 found more there than in the wrapper. Whether to add JVM/Robolectric tests, instrumented tests, or both is a project decision."
+        deferred_reason: "A scope and tooling ruling rather than a finding."
+    carry_forward: []
 next_actions:
   - "All phases complete. Review findings; post-pipeline skills: codecarto_list_skills / codecarto_skill."
-  - "4 open question(s) and 4 post-pipeline item(s) remain — apply resolutions with codecarto_amend (write scratch/amendments/<slug>.yaml from templates/amendment.yaml)."
+  - "7 open question(s) and 13 post-pipeline item(s) remain — apply resolutions with codecarto_amend (write scratch/amendments/<slug>.yaml from templates/amendment.yaml)."
   - "Dashboard: .codecarto/dashboard.html (refreshed on completion and amendment; codecarto_dashboard re-renders on demand). Usage totals: codecarto_usage."
 post_pipeline:
   -
@@ -67,4 +97,58 @@ post_pipeline:
     kind: spike
     description: "Decide whether to consume pi-mono's unreleased commits. The fork at forks/pi-mono is 31 commits past the 0.84.3 bump, several touching the openai-completions path this project uses. Taking them means building from source instead of the registry, trading away npm ci reproducibility."
     source_phase: architecture
+    status: pending
+  -
+    id: pp-ds-1
+    kind: amendment
+    description: "Fix 3.1: re-check exitCode after inserting into pending, or guard registration and drain with a shared lock. High."
+    source_phase: defect-scan
+    status: pending
+  -
+    id: pp-ds-2
+    kind: amendment
+    description: "Fix 2.1: guard AgentController.prompt with try/catch setting SessionState.Failed, and add a CoroutineExceptionHandler to the scope as a backstop. High."
+    source_phase: defect-scan
+    status: pending
+  -
+    id: pp-ds-3
+    kind: amendment
+    description: "Fix 2.2: add withTimeout to WrapperClient.call and a shorter bound to awaitReady."
+    source_phase: defect-scan
+    status: pending
+  -
+    id: pp-ds-4
+    kind: amendment
+    description: "Resolve 4.1: request StrongBox with fallback and verify by attestation, or soften the hardware-bound wording in SECURITY.md."
+    source_phase: defect-scan
+    status: pending
+  -
+    id: pp-ds-5
+    kind: amendment
+    description: "Fix 1.1: set onBufferOverflow = DROP_OLDEST to match the stated intent, or correct the comment."
+    source_phase: defect-scan
+    status: pending
+  -
+    id: pp-ds-6
+    kind: amendment
+    description: "Add a cross-language check that AgentProvider.kt and the wrapper PROVIDERS table agree on ids and key env vars (finding 5.1, Convention C02)."
+    source_phase: defect-scan
+    status: pending
+  -
+    id: pp-ds-7
+    kind: amendment
+    description: "Fix 4.2: make the memory.md delimiter guard case- and whitespace-insensitive, with a mixed-case test."
+    source_phase: defect-scan
+    status: pending
+  -
+    id: pp-ds-8
+    kind: amendment
+    description: "Pin distributionSha256Sum (6.1) and persist provider selection (6.2)."
+    source_phase: defect-scan
+    status: pending
+  -
+    id: pp-ds-9
+    kind: spike
+    description: "Stand up an Android test harness. The absence of any android/ tests is the root cause behind the severity distribution in this report."
+    source_phase: defect-scan
     status: pending

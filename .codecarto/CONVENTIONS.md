@@ -115,8 +115,31 @@ re-vendoring from upstream and updating VENDORED.md instead.
 
 <!-- Repeat the C<NN> block for each convention. Number sequentially. -->
 
+## C04. Every suspend call into the wrapper is guarded and bounded
+
+Any call site that suspends on `WrapperClient` must **both** catch
+`WrapperProcessExitedException` **and** impose a timeout.
+
+**Why:** The wrapper is a separate OS process running under proot on a phone. It
+can die or wedge at any moment, and the two failure modes need different
+handling. An unguarded call site turns a death into an app crash — the scope has
+no `CoroutineExceptionHandler` — and a missing timeout turns a wedge into a
+permanent hang with no route back to a usable UI. Findings 2.1, 2.2 and 3.1 are
+all instances of this one rule being absent.
+
+**How to apply:** Every `wc.prompt/abort/state/shutdown/awaitReady` call site.
+`AgentController.prompt` was the outlier that made this a convention rather than
+a note.
+
+**Current implementers:** `AgentController.startSession` (catches, no timeout),
+`AgentController.abort` (catches via `runCatching`, no timeout).
+
+**Source:** closeouts/2026-08-27-defect-scan.md
+
+---
+
 ## Pending proposals
 
 Staged by completion from each phase handoff's `proposed_conventions`. The orchestrator promotes an entry into a numbered convention above (or removes it with a note) at the phase boundary — see GUIDE.md §Roles.
 
-_None pending. All three proposals from the architecture phase were promoted to C01–C03 on 2026-08-27._
+_None pending. C01–C03 promoted from the architecture phase, C04 from defect-scan, on 2026-08-27._
