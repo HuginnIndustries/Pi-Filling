@@ -101,6 +101,29 @@ dependencies, docs) drove the following.
 - Recorded that `distributionSha256Sum` is still unpinned in
   `gradle-wrapper.properties`, as a supply-chain follow-up.
 
+### Direction: mobile-native feature design
+
+- Recorded the design for a **host-capability channel** — a reverse RPC letting
+  Layer 3 ask Layer 1 for Android-native work (`ARCHITECTURE.md`). The protocol
+  is currently one-directional, which is why the agent cannot speak, notify, or
+  reach the share sheet: nothing carries the request outward. Allow-listed by
+  Layer 1, refusable, and opt-in for anything with a real-world side effect.
+- Established that **voice input needs no code**: any Android dictation keyboard
+  types into the prompt box as normal text. This was already true and unnoticed.
+  Offline recognition via Vosk is recorded as the eventual direction, not v1.
+- Text to speech is the first planned capability, porting the extension from
+  `pi-termux-android-voice` onto the channel. That project's own notes name "a
+  small Android companion app that calls `TextToSpeech.stop()`" as the fix for
+  problems it could not solve from Termux — Layer 1 is that app, so the port
+  gains a real stop and real chunking.
+- Added **Stage 1.6** to the roadmap around one principle: on a phone the human
+  is a director and reviewer, not a typist. Suggestion chips, prompt templates,
+  one-tap skills, diff review with per-hunk accept, session resume, share-sheet
+  ingestion, OCR.
+- No implementation yet. Two open decisions are recorded rather than assumed:
+  where the voice extension lives, and whether the capability channel should be
+  proposed upstream to pi.
+
 ### bash in the sandbox
 
 - **Fixed: the agent is promised a bash tool in a sandbox with no bash.**

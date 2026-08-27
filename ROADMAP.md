@@ -110,7 +110,7 @@ run proved from what it did not.
 - **1.4 UI surface.** 🟡 decided and scaffolded. Compose-native chat, not an
   embedded TUI. Three screens: key entry with provider chooser, provisioning,
   session. Deliberately minimal — no tool-call rendering, diffs, cost meter or
-  run history yet.
+  run history yet. The direction for filling it in is Stage 1.6 below.
 - **1.5 GitHub auth + push.** 🟡 in progress. Auth decided (fine-grained PAT)
   and wired: the token is stored encrypted per the existing key mechanism,
   injected as `GITHUB_TOKEN`, and consumed by a `https://github.com`-scoped git
@@ -127,6 +127,92 @@ run proved from what it did not.
 Server-side companion, multi-device sync beyond what git gives, vector
 recall, skill loader, multi-LLM, iOS, generative UI, agent autonomy
 (heartbeats / cron). See [`V1_SPEC.md`](./V1_SPEC.md) §"Scope — Out".
+
+## Stage 1.6 — Making it a mobile agent, not a terminal in a box
+
+Running pi in Termux already works. What makes it unpleasant on a phone is not
+the agent — it is being asked to be an **author** on a device with no keyboard.
+
+The design principle for everything here: **on a phone the human is a director
+and reviewer, not a typist.** The verbs are approve, steer, pick, dictate,
+point. Every feature below is judged by whether it removes typing or makes
+reviewing pleasant.
+
+### The enabling piece
+
+- **Host-capability channel.** A reverse RPC so Layer 3 can ask Layer 1 to do
+  Android-native things. Designed in
+  [`ARCHITECTURE.md`](./ARCHITECTURE.md#the-host-capability-channel-designed-not-built);
+  not built. Everything else in this stage hangs off it, and it is the part of
+  the product with no desktop equivalent.
+
+### Voice
+
+- **Voice input needs no work.** Any Android dictation keyboard types into the
+  prompt box as normal text. This is already true today.
+- **Text to speech** as the first host capability, porting the extension from
+  [`pi-termux-android-voice`](https://github.com/TheAmericanMaker/pi-termux-android-voice)
+  onto it — same tools and slash commands, but with a real `TextToSpeech.stop()`
+  and real chunking, both of which that project could not do from Termux.
+- **Speaking aloud defaults off**, opt-in persisted. Consequential on a phone in
+  a way it is not on a desktop.
+- **A mic button** is a one-tap convenience over the keyboard's own mic. Minor;
+  do not mistake it for building recognition.
+- **Offline recognition via [Vosk](https://github.com/alphacep/vosk-android-demo)**
+  is the intended eventual direction — no keyboard round-trip, no network.
+  Deferred: the platform already covers the case, and bundling an acoustic model
+  is a real size and lifecycle commitment.
+
+### Removing typing
+
+- **Suggested next actions.** After each turn the agent offers 2–4 next steps as
+  chips; one tap sends. Most sessions become zero typing, and it costs a
+  system-prompt convention plus a row of buttons.
+- **Prompt templates** as one-tap cards. pi already has `prompt-templates.ts`.
+- **Point, don't describe.** Tap a line in a diff to prompt about it with the
+  selection attached.
+- **Skills as one tap.** pi has `skills.ts`, and there is a maintained library at
+  [`skills-TAMaker`](https://github.com/TheAmericanMaker/skills-TAMaker). Loading
+  a whole procedure with one tap is the purest form of directing rather than
+  typing, and it is not something a desktop pi user gets for free.
+
+### Making review pleasant
+
+- **Real diff rendering with per-hunk accept/reject.** Reading and deciding is
+  what a phone is genuinely good at; the transcript is currently flat text with
+  `▸ bash` markers.
+- **Tool-call cards** rather than raw events — "ran `npm test` → 25 passed",
+  collapsible.
+- **Approval gate for destructive commands**, built on pi's `trust-manager`.
+  Much easier to design in now than to retrofit.
+
+### Because it is a phone
+
+- **Session resume.** Phones are interrupted constantly — calls, app switches,
+  Doze — so resume matters more here than on desktop, and pi already implements
+  it in `session-manager`.
+- **Background runs with a notification** when the agent finishes or needs a
+  decision. The foreground service already exists.
+- **Share-sheet ingestion** — send a stack trace, URL or screenshot straight in
+  as a prompt.
+- **Camera and OCR** for an error on another machine's screen.
+- **Foldable layout** — diff and chat side by side on the inner display.
+
+### Suggested order
+
+The enabling channel, then TTS on top of it to prove it. Then suggestion chips
+and diff cards, which need no protocol work and remove the most typing per unit
+of effort. Session resume next, because losing a run to a phone call is the most
+annoying failure left. Skills, share-sheet and OCR after the core loop is good.
+
+### Open decisions
+
+- **Where the voice extension lives.** Keeping it in `pi-termux-android-voice`
+  with a pluggable backend means one extension serving both Termux and
+  Pi-Filling, at the cost of some indirection. Vendoring it here is simpler but
+  forks a project that already works.
+- **Whether the host-capability channel is Pi-Filling-specific or a pi-level
+  proposal.** Any pi host embedded in a native app has this same gap.
 
 ## Stage 1.5 — Polish and observability
 

@@ -99,6 +99,89 @@ from `pi-mono` packages. Our additions are thin:
 
 What it doesn't own: anything device-specific.
 
+## The host-capability channel (designed, not built)
+
+Today the stdio protocol is effectively one-directional. Layer 1 issues requests
+(`prompt`, `abort`, `state`, `shutdown`); Layer 3 answers them and pushes events.
+Layer 3 can *tell* Layer 1 things, but it cannot *ask* Layer 1 for anything.
+
+That asymmetry is the thing standing between this app and every capability a
+phone has and a desktop does not. The agent runs inside a proot rootfs with no
+bridge to Android: it cannot speak, notify, read the clipboard, open the share
+sheet, take a photo, or vibrate — not because those are hard, but because
+nothing carries the request outward.
+
+**The design:** a reverse RPC. Layer 3 emits a `host_request` naming a
+capability and its parameters; Layer 1 executes it natively and replies with a
+`host_response` correlated by id. Same JSONL framing, same stdio, opposite
+direction.
+
+```jsonc
+// Layer 3 → Layer 1
+{"host_request": {"id": 7, "capability": "tts.speak", "params": {"text": "…", "rate": 1.0}}}
+// Layer 1 → Layer 3
+{"host_response": {"id": 7, "ok": true, "result": {"utteranceId": "…"}}}
+```
+
+Design constraints that fall out of the trust model:
+
+- **Capabilities are allow-listed by Layer 1, never by name from the guest.** The
+  agent runs model-chosen code; an open-ended "run this Android intent" channel
+  would hand it the phone. Layer 1 exposes a fixed, reviewed set.
+- **Every capability is refusable.** An unknown or disabled capability returns a
+  structured error, and the agent must degrade rather than fail.
+- **Anything with a real-world side effect is opt-in and persisted.** Speaking
+  aloud is the worked example: harmless on a desktop, consequential when the
+  phone is in a pocket in a meeting.
+
+**Why this matters more than protocol parity with desktop pi.** Widening the
+protocol to expose pi's sessions, model switching and usage totals is worth
+doing, but it is catching up. The host-capability channel is the part with no
+desktop equivalent, and it is what makes the answer to "why run an agent on a
+phone" something other than "because you can".
+
+### First capability: text to speech
+
+Prior art exists and is ours:
+[`pi-termux-android-voice`](https://github.com/TheAmericanMaker/pi-termux-android-voice)
+already solves agent speech for Termux as a pi **extension**, registering
+assistant-callable tools (`android_tts_speak`, `android_tts_config`) and slash
+commands (`/say`, `/voice-auto on|off|status`, `/voice-doctor`, `/voice-stop`),
+with persisted rate and pitch.
+
+The extension pattern ports unchanged — pi-coding-agent supports extensions and
+Layer 3 bundles it. Only the bottom layer changes: `execFile("termux-tts-speak")`
+becomes a `host_request`, because our guest has no Termux:API and never will.
+
+That substitution is an upgrade rather than a workaround, and that project's own
+architecture notes say so — its "future improvement" list names *"a small Android
+companion app/service that calls Android `TextToSpeech.stop()`"* as the fix for
+problems it could not solve. Layer 1 is that app:
+
+| Unsolved in the Termux version | Why Layer 1 solves it |
+|---|---|
+| No reliable stop; an empty utterance is a best-effort flush | `TextToSpeech.stop()` is a real API |
+| Long replies cannot be chunked safely | `UtteranceProgressListener` gives real completion callbacks |
+| Requires the Termux:API app plus `pkg install termux-api` | No dependency; Layer 1 *is* the Android app |
+| A subprocess per utterance | One long-lived `TextToSpeech` instance |
+
+### Voice input is not a capability we build
+
+Any Android dictation keyboard — Gboard voice typing, Samsung voice input — types
+into an ordinary text field as normal text. The prompt box already accepts it, so
+**voice input works today with no code**, which is the same conclusion
+`pi-termux-android-voice` reached for Termux.
+
+A dedicated mic button is worth roughly one tap over tapping the field and then
+the keyboard's mic. It is an optimisation, not a missing capability, and should
+not be confused for one.
+
+Offline on-device recognition — [Vosk](https://github.com/alphacep/vosk-android-demo)
+is the intended direction — is a genuine future capability, because it removes the
+keyboard round-trip and works without network. It is deliberately *not* v1: the
+platform already covers the case, and shipping a bundled acoustic model is a real
+size and lifecycle commitment.
+
 ## Memory model
 
 `memory.md` is a markdown file in the user's project repo with named
