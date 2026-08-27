@@ -13,6 +13,8 @@ import { Agent } from "@earendil-works/pi-agent-core";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import { streamSimple } from "@earendil-works/pi-ai/compat";
 import { createCodingTools } from "@earendil-works/pi-coding-agent";
+import { createHostChannel } from "./host-channel.mjs";
+import { createVoiceTools } from "./tools/voice.mjs";
 import { createInterface } from "node:readline";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
@@ -222,11 +224,19 @@ if (existsSync(memoryPath)) {
 const tools = createCodingTools(repoPath);
 log.info(`tools: ${tools.map((t) => t.name).join(", ")}`);
 
+// The host-capability channel lets tools ask Layer 1 for things the sandbox
+// cannot do itself (see host-channel.mjs). `send` is declared below, so bind
+// it late rather than reordering the module.
+const host = createHostChannel({ send: (msg) => send(msg) });
+const voiceTools = createVoiceTools(host);
+const allTools = [...tools, ...voiceTools];
+log.info(`host capabilities: ${voiceTools.map((t) => t.name).join(", ")}`);
+
 const agent = new Agent({
   initialState: {
     systemPrompt: composedSystemPrompt,
     model,
-    tools,
+    tools: allTools,
   },
   streamFn: streamSimple,
   // Agent resolves this and hands the value to streamFn as options.apiKey, so
@@ -376,6 +386,9 @@ async function dispatch(line) {
     log.error(`malformed request (expected a JSON object): ${line}`);
     return;
   }
+  // Host capability replies ride the same stdin channel as requests but
+  // are answers to us, not calls on us. Consume them before dispatching.
+  if (host.handleMessage(req)) return;
   const { id, method, params } = req;
   if (typeof id !== "number") {
     // No usable id to echo — log and drop (documented in DESIGN.md).

@@ -168,6 +168,63 @@ Emitted when the wrapper itself errors — bad config, unhandled exception,
 provider auth failure that bubbled up out of the loop, etc. Doesn't
 necessarily mean the wrapper is dying; check the next event.
 
+## The host-capability channel
+
+Everything above is Layer 1 calling Layer 3. This is the reverse: Layer 3 asking
+Layer 1 for something the sandbox cannot do itself.
+
+The agent runs inside a proot rootfs. Node can reach Alpine; Alpine cannot reach
+Android. So speaking, notifying, the clipboard, the share sheet and the camera
+are not "not implemented" — they are unreachable by construction, and have to be
+asked for.
+
+Same JSONL framing, opposite direction:
+
+```jsonc
+// Layer 3 → Layer 1, on stdout alongside events
+{"host_request":  {"id": 1, "capability": "tts.speak", "params": {"text": "…"}}}
+
+// Layer 1 → Layer 3, on stdin alongside requests
+{"host_response": {"id": 1, "ok": true,  "result": {"utteranceId": "…"}}}
+{"host_response": {"id": 1, "ok": false, "error": {"code": "unsupported_capability", "message": "…"}}}
+```
+
+`id` is a separate sequence from request ids and is correlated only within this
+channel. A `host_response` is consumed before the request dispatcher sees it, so
+the two directions cannot be confused.
+
+### Rules
+
+- **Layer 1 allow-lists capabilities.** The guest names a capability; it does not
+  name an implementation. The agent runs model-chosen code, so an open-ended
+  "run this on the host" channel would hand it the phone.
+- **Every capability is refusable**, and refusal is normal. A host with no
+  speech is not a broken host. Tools are expected to degrade — `voice_speak`
+  returns a result telling the model to continue without speech rather than
+  throwing.
+- **Requests are bounded.** 15s by default. A host that never answers must not
+  hang the agent.
+- **Anything with a real-world side effect is opt-in**, and the host owns that
+  state. Speaking aloud is the worked example: harmless on a desktop,
+  consequential when the phone is in a pocket.
+
+### Error codes
+
+| Code | Meaning |
+|---|---|
+| `unsupported_capability` | This host does not implement it. Do not retry this session. |
+| `not_permitted` | Implemented, but the user has it switched off. |
+| `channel_closed` | The wrapper is shutting down, or the host is gone. |
+| `host_error` | The host tried and failed. |
+
+### Why the transport is injected
+
+`createHostChannel({ send })` takes its sender rather than importing one. That is
+what makes the channel testable with no device — a test is the host — and it is
+also the seam that keeps this promotable to a pi-level mechanism later. pi's
+`ExtensionAPI` has no host surface today; if it grows one, pointing this at it is
+a one-file change. See ARCHITECTURE.md.
+
 ## Providers
 
 v1 ships against **Anthropic** (see V1_SPEC.md); it is the default and the only
