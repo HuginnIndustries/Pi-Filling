@@ -1,0 +1,70 @@
+project_name: Pi-Filling
+pipeline: workflow/pipeline-architecture-only.yaml
+current_phase: complete
+last_updated: "2026-08-27T00:25:35.245Z"
+schema_version: 1
+phases:
+  architecture:
+    status: complete
+    owner_notes:
+      - "Completed via codecarto_complete."
+      - "Primary output: .codecarto/findings/architecture/architecture-map.md"
+      - "Validation: PASS"
+      - "Mapped 82 tracked files across three named product layers (Layer 1 Android app, Layer 2 proot/Alpine sandbox, Layer 3 Node wrapper) plus one non-product module (spike-host-alpine, historical spike evidence)."
+      - "Dependency graph is acyclic. Lowest stable layer inside the repo is wrapper/Protocol.kt and sandbox/SandboxState.kt - pure data and constants, imported by others, importing nothing from the project."
+      - "Layer 3 is shipped inside Layer 1 as an APK asset and copied into Layer 2's filesystem at provisioning time, so the layers are nested at runtime rather than merely adjacent. Confirmed by inspecting the built APK."
+      - "All five declared secondary outputs were written, not deferred: public-surfaces, runtime-lifecycle, state-and-storage, build-and-deploy, config-model."
+      - "Evidence basis is unusually strong for an architecture pass: the sandbox, protocol and storage paths were exercised on physical hardware during this session, so several conclusions are runtime-verified rather than inferred. See android/VERIFICATION.md."
+    outputs_present:
+      - findings/architecture/architecture-map.md
+    open_questions:
+      -
+        id: q-r8-release-shape
+        kind: runtime-test
+        description: "No release or minified build has ever been produced, so R8/ProGuard effects on the kotlinx-serialization protocol models are unverified. proguard-rules.pro exists but has never been exercised."
+        deferred_reason: "Needs an actual assembleRelease plus an on-device run; no amount of static reading settles whether the wire models survive shrinking."
+      -
+        id: q-provider-table-drift
+        kind: maintainer-decision
+        description: "AgentProvider.kt and the PROVIDERS table in wrapper.mjs encode the same contract in two languages with nothing enforcing agreement. Drift fails at run time rather than build time."
+        deferred_reason: "Whether to generate one from the other, add a cross-language test, or accept the duplication is a design ruling, not a finding."
+      -
+        id: q-fgs-survival
+        kind: runtime-test
+        description: "Whether the dataSync foreground service actually keeps a long agent run alive under real memory pressure and Doze is unmeasured."
+        deferred_reason: "Requires a long-running device test under induced memory pressure."
+      -
+        id: q-anthropic-on-device
+        kind: runtime-test
+        description: "The provider v1 ships against has never made a live call from the handset; every device run so far used openai-completions via Ollama Cloud."
+        deferred_reason: "Needs a device session with an Anthropic key; the code path differs from the one already verified."
+    carry_forward: []
+next_actions:
+  - "All phases complete. Review findings; post-pipeline skills: codecarto_list_skills / codecarto_skill."
+  - "4 open question(s) and 4 post-pipeline item(s) remain — apply resolutions with codecarto_amend (write scratch/amendments/<slug>.yaml from templates/amendment.yaml)."
+  - "Dashboard: .codecarto/dashboard.html (refreshed on completion and amendment; codecarto_dashboard re-renders on demand). Usage totals: codecarto_usage."
+post_pipeline:
+  -
+    id: pp-arch-1
+    kind: amendment
+    description: "Pin distributionSha256Sum in android/gradle/wrapper/gradle-wrapper.properties. Currently unpinned; noted in android/README.md as a supply-chain follow-up."
+    source_phase: architecture
+    status: pending
+  -
+    id: pp-arch-2
+    kind: amendment
+    description: "Persist the selected provider. The app resets to Anthropic on relaunch even when another provider's key is stored, so the chooser must be re-selected each launch."
+    source_phase: architecture
+    status: pending
+  -
+    id: pp-arch-3
+    kind: amendment
+    description: "Stop forwarding wrapper stderr to logcat in release builds, or redact it. Wrapper diagnostics echo CLI arguments, so a credential mistyped into a field that becomes an argument can reach the device log."
+    source_phase: architecture
+    status: pending
+  -
+    id: pp-arch-4
+    kind: spike
+    description: "Decide whether to consume pi-mono's unreleased commits. The fork at forks/pi-mono is 31 commits past the 0.84.3 bump, several touching the openai-completions path this project uses. Taking them means building from source instead of the registry, trading away npm ci reproducibility."
+    source_phase: architecture
+    status: pending

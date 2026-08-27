@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pi-Filling — CodeCartographer dashboard</title>
+<style>
+:root {
+  --sidebar-width: 300px; --s-1: 4px; --s-2: 8px; --s-3: 16px; --s-4: 24px; --s-5: 40px;
+  --fg: #1f2328; --fg-dim: #667085; --bg: #f6f4ee; --bg-card: #fffdf7; --bg-soft: #ece7da;
+  --border: #ddd5c4; --accent: #b8432f; --accent-2: #2c5862; --accent-3: #63a77d;
+  --status-pending: #8a8f98; --status-current: #2c5862; --status-running: #b7791f; --status-complete: #2f855a; --status-error: #c53030;
+  --code-bg: #eee8da; --shadow: 0 14px 45px rgba(22, 18, 12, 0.10);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #f3ead7; --fg-dim: #a79f90; --bg: #101211; --bg-card: #181b19; --bg-soft: #20251f;
+    --border: #30362f; --accent: #f1a84f; --accent-2: #71c4cf; --accent-3: #63e6a4;
+    --status-pending: #7d8790; --status-current: #71c4cf; --status-running: #f1a84f; --status-complete: #63e6a4; --status-error: #ff7768;
+    --code-bg: #242820; --shadow: 0 14px 45px rgba(0, 0, 0, 0.28);
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: radial-gradient(circle at top left, color-mix(in srgb, var(--accent-2) 15%, transparent), transparent 32rem), var(--bg); color: var(--fg); font: 14px/1.55 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+a { color: var(--accent-2); text-decoration: none; }
+a:hover { color: var(--accent); text-decoration: underline; }
+code { background: var(--code-bg); padding: 2px 5px; border-radius: 5px; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+[hidden] { display: none !important; }
+.cc-dashboard { display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); min-height: 100vh; }
+.cc-sidebar { position: sticky; top: 0; height: 100vh; overflow: auto; padding: var(--s-3); border-right: 1px solid var(--border); background: color-mix(in srgb, var(--bg-card) 92%, transparent); backdrop-filter: blur(12px); }
+.cc-main { max-width: 1180px; width: 100%; padding: var(--s-4); }
+.cc-brand { display: flex; gap: var(--s-2); align-items: center; margin-bottom: var(--s-3); }
+.cc-brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: white; font-weight: 800; }
+.cc-brand div { display: grid; line-height: 1.2; } .cc-brand span:last-child { color: var(--fg-dim); font-size: 12px; }
+.cc-search-label { display: block; color: var(--fg-dim); font-size: 12px; margin-bottom: var(--s-1); }
+.cc-search { width: 100%; padding: 10px 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--fg); }
+.cc-filter-row { display: flex; flex-wrap: wrap; gap: var(--s-1); margin: var(--s-2) 0 var(--s-3); }
+.cc-filter, .cc-export { border: 1px solid var(--border); background: var(--bg-soft); color: var(--fg); border-radius: 999px; padding: 6px 9px; cursor: pointer; font: inherit; font-size: 12px; }
+.cc-filter.is-active, .cc-export:hover { border-color: var(--accent); color: var(--accent); }
+.cc-export { width: 100%; border-radius: 10px; margin-top: var(--s-3); }
+.cc-nav { display: grid; gap: 3px; }
+.cc-nav-link, .cc-nav-section { display: flex; justify-content: space-between; gap: var(--s-2); padding: 7px 8px; border-radius: 8px; color: var(--fg); }
+.cc-nav-link:hover, .cc-nav-section:hover { background: var(--bg-soft); text-decoration: none; }
+.cc-nav-link b { color: var(--fg-dim); font-size: 11px; text-transform: uppercase; }
+.cc-nav-section { color: var(--fg-dim); font-weight: 700; margin-top: var(--s-2); }
+.cc-sidebar-foot { color: var(--fg-dim); font-size: 12px; }
+.cc-menu-button { display: none; position: fixed; top: 12px; right: 12px; z-index: 20; border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; background: var(--bg-card); color: var(--fg); }
+.cc-header, .cc-card, .cc-phase-card, .cc-warning { background: var(--bg-card); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); }
+.cc-header { padding: var(--s-4); margin-bottom: var(--s-4); }
+.cc-eyebrow { color: var(--accent); text-transform: uppercase; letter-spacing: .14em; font-size: 12px; font-weight: 800; }
+h1 { font-size: clamp(30px, 5vw, 56px); line-height: 1; margin: var(--s-2) 0; }
+h2 { margin: 0; font-size: 18px; } h3 { margin: var(--s-2) 0 var(--s-1); color: var(--fg-dim); text-transform: uppercase; letter-spacing: .06em; font-size: 12px; }
+.cc-goal { max-width: 70ch; color: var(--fg-dim); font-size: 16px; }
+.cc-stat-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); margin-top: var(--s-3); }
+.cc-stat { padding: var(--s-2); border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
+.cc-stat span { display: block; color: var(--fg-dim); font-size: 12px; } .cc-stat strong { display: block; font-size: 18px; }
+.cc-meta-details { margin-top: var(--s-3); } .cc-header-meta, .cc-run-meta, .cc-usage-totals { display: grid; grid-template-columns: max-content 1fr; gap: var(--s-1) var(--s-3); margin: var(--s-2) 0; } dt { color: var(--fg-dim); } dd { margin: 0; }
+.cc-card, .cc-warning { padding: var(--s-3); margin-bottom: var(--s-4); }
+.cc-warning { border-color: var(--status-running); background: color-mix(in srgb, var(--status-running) 9%, var(--bg-card)); }
+.cc-health { border-width: 1px; position: relative; overflow: hidden; }
+.cc-health::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 4px; background: var(--accent-2); }
+.cc-health-bad::before { background: var(--status-error); } .cc-health-warn::before { background: var(--status-running); } .cc-health-ok::before { background: var(--status-complete); }
+.cc-health-hero { display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); margin-bottom: var(--s-3); }
+.cc-health-hero h2 { font-size: clamp(24px, 3vw, 38px); text-transform: capitalize; margin: 2px 0; }
+.cc-health-hero p { color: var(--fg-dim); margin: 0; }
+.cc-health-ring { width: 112px; height: 112px; border-radius: 999px; display: grid; place-items: center; align-content: center; background: radial-gradient(circle at center, var(--bg-card) 58%, transparent 59%), conic-gradient(var(--accent-3), var(--accent-2)); border: 1px solid var(--border); flex: 0 0 auto; }
+.cc-health-ring strong { font-size: 24px; line-height: 1; } .cc-health-ring span { color: var(--fg-dim); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+.cc-health-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--s-2); margin-bottom: var(--s-3); }
+.cc-health-metric { padding: var(--s-2); border: 1px solid var(--border); border-radius: 14px; background: var(--bg); min-width: 0; }
+.cc-health-metric span { display: block; color: var(--fg-dim); font-size: 12px; } .cc-health-metric strong { display: block; margin-top: 2px; font-size: 18px; overflow-wrap: anywhere; }
+.cc-tone-ok strong { color: var(--status-complete); } .cc-tone-warn strong { color: var(--status-running); } .cc-tone-bad strong { color: var(--status-error); }
+.cc-health-issues { display: grid; gap: var(--s-2); }
+.cc-health-issue { padding: var(--s-2); border: 1px solid var(--border); border-radius: 14px; background: var(--bg); }
+.cc-health-issue div { display: flex; flex-wrap: wrap; gap: var(--s-1); align-items: center; margin-bottom: 2px; }
+.cc-health-issue strong { display: block; font-size: 15px; } .cc-health-issue p { color: var(--fg-dim); margin: 2px 0 0; }
+.cc-issue-blocker { border-color: color-mix(in srgb, var(--status-error) 55%, var(--border)); background: color-mix(in srgb, var(--status-error) 8%, var(--bg-card)); }
+.cc-health-ok { color: var(--status-complete); margin: 0; }
+.cc-section-head { display: flex; justify-content: space-between; gap: var(--s-2); align-items: baseline; padding-bottom: var(--s-2); margin-bottom: var(--s-2); border-bottom: 1px solid var(--border); }
+.cc-section-head span, .cc-muted, .cc-empty { color: var(--fg-dim); }
+.cc-narration pre { white-space: pre-wrap; word-wrap: break-word; margin: 0; font-family: inherit; }
+.cc-artifact-list, .cc-closeouts-list { display: grid; gap: var(--s-2); }
+.cc-artifact-row, .cc-closeout-row { display: grid; grid-template-columns: minmax(170px, .8fr) minmax(0, 1.5fr) minmax(180px, .8fr); gap: var(--s-2); align-items: start; padding: var(--s-2); border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
+.cc-artifact-row > div:first-child, .cc-closeout-row > div:first-child { display: grid; gap: 2px; }
+.cc-closeout-row code { display: block; margin-top: 3px; width: fit-content; }
+.cc-closeout-summary { color: var(--fg-dim); margin: var(--s-1) 0 0; }
+.cc-closeout-results { display: flex; flex-wrap: wrap; gap: var(--s-1); }
+.cc-progress-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: var(--s-2); }
+.cc-progress-item a { display: grid; gap: 2px; padding: var(--s-2); border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); color: var(--fg); }
+.cc-progress-item a:hover { text-decoration: none; border-color: var(--accent); }
+.cc-progress-id, .cc-phase-id { font-weight: 800; } .cc-progress-badge, .cc-phase-badge { text-transform: uppercase; letter-spacing: .06em; font-size: 11px; color: var(--fg-dim); }
+.cc-state-complete .cc-progress-badge, .cc-state-complete .cc-phase-badge { color: var(--status-complete); } .cc-state-current .cc-progress-badge, .cc-state-current .cc-phase-badge { color: var(--status-current); } .cc-state-running .cc-progress-badge, .cc-state-running .cc-phase-badge { color: var(--status-running); } .cc-state-pending .cc-progress-badge, .cc-state-pending .cc-phase-badge { color: var(--status-pending); }
+.cc-phase-card { margin-bottom: var(--s-2); scroll-margin-top: var(--s-3); overflow: hidden; }
+.cc-phase-card summary { padding: var(--s-3); cursor: pointer; display: flex; justify-content: space-between; gap: var(--s-3); align-items: baseline; }
+.cc-phase-card[open] summary { border-bottom: 1px solid var(--border); }
+.cc-phase-purpose { padding: var(--s-2) var(--s-3) 0; color: var(--fg-dim); }
+.cc-phase-section { padding: var(--s-2) var(--s-3); }
+.cc-phase-section ul { margin: 0; padding-left: var(--s-3); }
+.cc-phase-overview { display: grid; gap: var(--s-1); color: var(--fg-dim); }
+.cc-output-list li, .cc-question-list li, .cc-carry-list li, .cc-notes-list li { margin: var(--s-1) 0; }
+.cc-question-reason { color: var(--fg-dim); font-size: 13px; margin-left: var(--s-2); }
+.cc-pill { display: inline-block; padding: 2px 7px; border-radius: 999px; font-size: 11px; background: var(--code-bg); color: var(--fg-dim); border: 1px solid var(--border); margin: 0 3px 3px 0; }
+.cc-pill-ok { background: color-mix(in srgb, var(--status-complete) 14%, transparent); color: var(--status-complete); border-color: var(--status-complete); } .cc-pill-bad { background: color-mix(in srgb, var(--status-error) 14%, transparent); color: var(--status-error); border-color: var(--status-error); } .cc-pill-target { color: var(--accent-2); border-color: var(--accent-2); } .cc-pill-muted, .cc-missing-path { color: var(--fg-dim); }
+.cc-phase-jump { font-weight: 800; }
+.cc-usage-table, .cc-timeline-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cc-usage-table th, .cc-usage-table td, .cc-timeline-table th, .cc-timeline-table td { padding: var(--s-1) var(--s-2); text-align: left; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+.cc-usage-table th, .cc-timeline-table th { color: var(--fg-dim); font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: .04em; }
+.cc-usage-missing td:last-child { color: var(--status-running); }
+.cc-usage-insights { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); margin: var(--s-3) 0; }
+.cc-insight { padding: var(--s-2); border: 1px solid var(--border); border-radius: 12px; background: var(--bg); display: grid; gap: 2px; }
+.cc-insight span { color: var(--fg-dim); font-size: 12px; } .cc-insight a { font-weight: 800; } .cc-insight strong { font-size: 15px; }
+.cc-bar-cell { min-width: 120px; display: grid; grid-template-columns: minmax(42px, 1fr) auto; align-items: center; gap: var(--s-2); }
+.cc-bar-cell > span:last-child { min-width: 48px; text-align: right; }
+.cc-bar { height: 8px; border-radius: 999px; background: linear-gradient(90deg, var(--accent-2) var(--cc-bar), var(--bg-soft) var(--cc-bar)); border: 1px solid var(--border); }
+.cc-kind-summary { display: flex; flex-wrap: wrap; gap: var(--s-1); margin: var(--s-2) 0 var(--s-3); }
+.cc-kind-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg); color: var(--fg-dim); font-size: 12px; }
+.cc-kind-chip strong { color: var(--fg); }
+.cc-timeline-older { margin-top: var(--s-2); }
+.cc-footer { margin-top: var(--s-5); padding-top: var(--s-3); border-top: 1px solid var(--border); color: var(--fg-dim); font-size: 13px; }
+@media (max-width: 900px) {
+  .cc-dashboard { display: block; }
+  .cc-sidebar { position: fixed; inset: 0 auto 0 0; width: min(86vw, 340px); transform: translateX(-105%); transition: transform .18s ease; z-index: 10; }
+  body.cc-sidebar-open .cc-sidebar { transform: translateX(0); }
+  .cc-menu-button { display: block; }
+  .cc-main { padding: var(--s-3); padding-top: var(--s-5); }
+  .cc-stat-grid, .cc-artifact-row, .cc-closeout-row, .cc-health-grid, .cc-usage-insights { grid-template-columns: 1fr; }
+  .cc-health-hero { align-items: flex-start; } .cc-health-ring { width: 88px; height: 88px; }
+  .cc-header-meta, .cc-run-meta, .cc-usage-totals { grid-template-columns: 1fr; }
+  table { display: block; overflow-x: auto; white-space: nowrap; }
+}
+@media print {
+  body { background: #fff; color: #111; }
+  .cc-sidebar, .cc-menu-button, script { display: none !important; }
+  .cc-dashboard { display: block; } .cc-main { max-width: none; padding: 0; } .cc-card, .cc-header, .cc-phase-card { box-shadow: none; break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<button class="cc-menu-button" type="button" data-sidebar-toggle aria-label="Toggle navigation">☰</button>
+<main class="cc-dashboard">
+<aside class="cc-sidebar" data-sidebar>
+<div class="cc-brand">
+<span class="cc-brand-mark">◇</span>
+<div><strong>CodeCartographer</strong><span>Pi-Filling</span></div>
+</div>
+<label class="cc-search-label">Search dashboard</label>
+<input class="cc-search" type="search" placeholder="phase, output, question…" data-search>
+<div class="cc-filter-row" aria-label="Status filters">
+<button type="button" class="cc-filter is-active" data-filter="all">All</button>
+<button type="button" class="cc-filter" data-filter="complete">Complete</button>
+<button type="button" class="cc-filter" data-filter="current">Current</button>
+<button type="button" class="cc-filter" data-filter="pending">Pending</button>
+</div>
+<nav class="cc-nav" aria-label="Dashboard sections">
+<a class="cc-nav-section" href="#summary">Summary</a>
+<a class="cc-nav-section" href="#key-results">Key results</a>
+<a class="cc-nav-section" href="#phases">Phases</a>
+<a class="cc-nav-link cc-state-complete" href="#phase-architecture" data-status="complete"><span>architecture</span><b>complete</b></a>
+<a class="cc-nav-section" href="#usage">Usage</a>
+<a class="cc-nav-section" href="#post-pipeline">Post-pipeline</a>
+<a class="cc-nav-section" href="#closeouts">Closeouts</a>
+</nav>
+<button type="button" class="cc-export" data-export>Export dashboard JSON</button>
+<p class="cc-sidebar-foot">Self-contained local report. No network calls.</p>
+</aside>
+<div class="cc-main">
+<header class="cc-header" id="summary" data-section data-search-text="Pi-Filling codebase-architecture-scan Pipeline complete Produce an architecture map for an unfamiliar source repository.">
+<div class="cc-eyebrow">CodeCartographer dashboard</div>
+<h1>Pi-Filling</h1>
+<p class="cc-goal">Produce an architecture map for an unfamiliar source repository.</p>
+<div class="cc-stat-grid">
+<div class="cc-stat"><span>Pipeline</span><strong>codebase-architecture-scan</strong></div>
+<div class="cc-stat"><span>Current phase</span><strong>Pipeline complete</strong></div>
+<div class="cc-stat"><span>Progress</span><strong>1/1 phases</strong></div>
+<div class="cc-stat"><span>Recorded tokens</span><strong>unavailable</strong></div>
+<div class="cc-stat"><span>Tool uses</span><strong>0</strong></div>
+<div class="cc-stat"><span>Package</span><strong>v0.16.0</strong></div>
+</div>
+<details class="cc-meta-details">
+<summary>Run metadata and next actions</summary>
+<dl class="cc-header-meta">
+<dt>Status last updated</dt><dd>2026-08-27T00:25:35.245Z</dd>
+<dt>Dashboard generated</dt><dd>2026-08-27T00:25:35.253Z</dd>
+<dt>Status file</dt><dd><code>workflow/pipeline-architecture-only.yaml</code></dd>
+</dl>
+<h3>Next actions</h3>
+<ul class="cc-next-actions"><li>All phases complete. Review findings; post-pipeline skills: codecarto_list_skills / codecarto_skill.</li><li>4 open question(s) and 4 post-pipeline item(s) remain — apply resolutions with codecarto_amend (write scratch/amendments/&lt;slug&gt;.yaml from templates/amendment.yaml).</li><li>Dashboard: .codecarto/dashboard.html (refreshed on completion and amendment; codecarto_dashboard re-renders on demand). Usage totals: codecarto_usage.</li></ul>
+</details>
+</header>
+<section class="cc-card cc-health cc-health-ok" aria-label="Dashboard health" data-section data-search-text="health status blockers missing artifacts open questions">
+<div class="cc-health-hero">
+<div><div class="cc-eyebrow">Pipeline health</div><h2>complete</h2><p>Pipeline complete — all phases have finished.</p></div>
+<div class="cc-health-ring" aria-label="1 of 1 phases complete"><strong>1/1</strong><span>phases</span></div>
+</div>
+<div class="cc-health-grid">
+<div class="cc-health-metric cc-tone-ok"><span>Artifacts needing attention</span><strong>0</strong></div>
+<div class="cc-health-metric cc-tone-warn"><span>Open questions</span><strong>4</strong></div>
+<div class="cc-health-metric cc-tone-ok"><span>Carry-forward items</span><strong>0</strong></div>
+<div class="cc-health-metric cc-tone-neutral"><span>Post-pipeline work</span><strong>4</strong></div>
+<div class="cc-health-metric cc-tone-neutral"><span>Tool uses</span><strong>0</strong></div>
+<div class="cc-health-metric cc-tone-neutral"><span>Runtime</span><strong>0ms</strong></div>
+<div class="cc-health-metric cc-tone-warn"><span>Tokens</span><strong>unavailable</strong></div>
+</div>
+<p class="cc-health-ok">No blocking artifact gaps detected.</p>
+</section>
+<section class="cc-card" id="key-results" aria-label="Key results" data-section data-search-text="key results final artifacts outputs">
+<div class="cc-section-head"><h2>Key results</h2><span>1 artifacts</span></div>
+<div class="cc-artifact-list"><article class="cc-artifact-row" data-search-text="architecture findings/architecture/architecture-map.md Primary result"><div><a class="cc-phase-jump" href="#phase-architecture">architecture</a><span>Primary result</span></div><div><a href="findings/architecture/architecture-map.md">findings/architecture/architecture-map.md</a></div><div><span class="cc-pill cc-pill-ok">available</span><a class="cc-pill" href="closeouts/2026-08-27-architecture.md">closeout</a></div></article></div>
+</section>
+<section class="cc-progress" aria-label="Pipeline progress" data-section data-search-text="pipeline progress">
+<h2>Pipeline progress</h2>
+<ol class="cc-progress-list">
+<li class="cc-progress-item cc-state-complete" title="Build the layer map, dependency direction, public surfaces, and high-level system structure."><a href="#phase-architecture"><span class="cc-progress-id">architecture</span><span class="cc-progress-badge">complete</span></a></li>
+</ol>
+</section>
+<section class="cc-phases" id="phases" aria-label="Per-phase status">
+<h2>Phases</h2>
+<details class="cc-phase-card cc-state-complete" id="phase-architecture" data-section data-phase data-status="complete" data-search-text="architecture Build the layer map, dependency direction, public surfaces, and high-level system structure. findings/architecture/architecture-map.md findings/public-surfaces/public-surfaces.md findings/runtime-lifecycle/runtime-lifecycle.md findings/state-and-storage/state-and-storage.md findings/build-and-deploy/build-and-deploy.md findings/config-model/config-model.md Completed via codecarto_complete. Primary output: .codecarto/findings/architecture/architecture-map.md Validation: PASS Mapped 82 tracked files across three named product layers (Layer 1 Android app, Layer 2 proot/Alpine sandbox, Layer 3 Node wrapper) plus one non-product module (spike-host-alpine, historical spike evidence). Dependency graph is acyclic. Lowest stable layer inside the repo is wrapper/Protocol.kt and sandbox/SandboxState.kt - pure data and constants, imported by others, importing nothing from the project. Layer 3 is shipped inside Layer 1 as an APK asset and copied into Layer 2&#39;s filesystem at provisioning time, so the layers are nested at runtime rather than merely adjacent. Confirmed by inspecting the built APK. All five declared secondary outputs were written, not deferred: public-surfaces, runtime-lifecycle, state-and-storage, build-and-deploy, config-model. Evidence basis is unusually strong for an architecture pass: the sandbox, protocol and storage paths were exercised on physical hardware during this session, so several conclusions are runtime-verified rather than inferred. See android/VERIFICATION.md. No release or minified build has ever been produced, so R8/ProGuard effects on the kotlinx-serialization protocol models are unverified. proguard-rules.pro exists but has never been exercised. AgentProvider.kt and the PROVIDERS table in wrapper.mjs encode the same contract in two languages with nothing enforcing agreement. Drift fails at run time rather than build time. Whether the dataSync foreground service actually keeps a long agent run alive under real memory pressure and Doze is unmeasured. The provider v1 ships against has never made a live call from the handset; every device run so far used openai-completions via Ollama Cloud.">
+<summary>
+<span class="cc-phase-id">architecture</span>
+<span class="cc-phase-badge">complete</span>
+</summary>
+<p class="cc-phase-purpose">Build the layer map, dependency direction, public surfaces, and high-level system structure.</p>
+<div class="cc-phase-section cc-phase-overview"><div><strong>Required reads</strong><code>GUIDE.md</code> <code>workflow/status.yaml</code></div></div>
+<div class="cc-phase-section"><h3>Outputs</h3><ul class="cc-output-list"><li><a href="findings/architecture/architecture-map.md">findings/architecture/architecture-map.md</a> <span class="cc-pill cc-pill-ok">primary</span></li><li><a href="findings/public-surfaces/public-surfaces.md">findings/public-surfaces/public-surfaces.md</a> <span class="cc-pill">secondary</span></li><li><a href="findings/runtime-lifecycle/runtime-lifecycle.md">findings/runtime-lifecycle/runtime-lifecycle.md</a> <span class="cc-pill">secondary</span></li><li><a href="findings/state-and-storage/state-and-storage.md">findings/state-and-storage/state-and-storage.md</a> <span class="cc-pill">secondary</span></li><li><a href="findings/build-and-deploy/build-and-deploy.md">findings/build-and-deploy/build-and-deploy.md</a> <span class="cc-pill">secondary</span></li><li><a href="findings/config-model/config-model.md">findings/config-model/config-model.md</a> <span class="cc-pill">secondary</span></li></ul></div>
+<div class="cc-phase-section"><h3>Closeout</h3><p><a href="closeouts/2026-08-27-architecture.md">2026-08-27-architecture.md</a></p><p class="cc-closeout-summary">Pi-Filling is a three-layer stack that is *nested* at runtime rather than merely layered: the Android app (Layer 1) ships the Node wrapper (Layer 3) as an APK asset and installs it into an Alpine rootfs hosted by proot (Layer 2). The only contract between layers is a small JSONL …</p></div>
+<div class="cc-phase-section"><h3>Open questions (4)</h3><ul class="cc-question-list"><li><span class="cc-pill">runtime-test</span> No release or minified build has ever been produced, so R8/ProGuard effects on the kotlinx-serialization protocol models are unverified. proguard-rules.pro exists but has never been exercised.<div class="cc-question-reason">Needs an actual assembleRelease plus an on-device run; no amount of static reading settles whether the wire models survive shrinking.</div></li><li><span class="cc-pill">maintainer-decision</span> AgentProvider.kt and the PROVIDERS table in wrapper.mjs encode the same contract in two languages with nothing enforcing agreement. Drift fails at run time rather than build time.<div class="cc-question-reason">Whether to generate one from the other, add a cross-language test, or accept the duplication is a design ruling, not a finding.</div></li><li><span class="cc-pill">runtime-test</span> Whether the dataSync foreground service actually keeps a long agent run alive under real memory pressure and Doze is unmeasured.<div class="cc-question-reason">Requires a long-running device test under induced memory pressure.</div></li><li><span class="cc-pill">runtime-test</span> The provider v1 ships against has never made a live call from the handset; every device run so far used openai-completions via Ollama Cloud.<div class="cc-question-reason">Needs a device session with an Anthropic key; the code path differs from the one already verified.</div></li></ul></div>
+<div class="cc-phase-section"><h3>Owner notes</h3><ul class="cc-notes-list"><li>Completed via codecarto_complete.</li><li>Primary output: .codecarto/findings/architecture/architecture-map.md</li><li>Validation: PASS</li><li>Mapped 82 tracked files across three named product layers (Layer 1 Android app, Layer 2 proot/Alpine sandbox, Layer 3 Node wrapper) plus one non-product module (spike-host-alpine, historical spike evidence).</li><li>Dependency graph is acyclic. Lowest stable layer inside the repo is wrapper/Protocol.kt and sandbox/SandboxState.kt - pure data and constants, imported by others, importing nothing from the project.</li><li>Layer 3 is shipped inside Layer 1 as an APK asset and copied into Layer 2&#39;s filesystem at provisioning time, so the layers are nested at runtime rather than merely adjacent. Confirmed by inspecting the built APK.</li><li>All five declared secondary outputs were written, not deferred: public-surfaces, runtime-lifecycle, state-and-storage, build-and-deploy, config-model.</li><li>Evidence basis is unusually strong for an architecture pass: the sandbox, protocol and storage paths were exercised on physical hardware during this session, so several conclusions are runtime-verified rather than inferred. See android/VERIFICATION.md.</li></ul></div>
+<div class="cc-phase-section"><h3>Last run</h3><dl class="cc-run-meta"><dt>Timestamp</dt><dd>2026-08-27T00:25:35.250Z</dd><dt>Status</dt><dd>completed</dd><dt>Turns</dt><dd>0</dd><dt>Tool uses</dt><dd>0</dd><dt>Tokens</dt><dd>unavailable</dd><dt>Duration</dt><dd>0ms</dd></dl></div>
+</details>
+</section>
+<section class="cc-card cc-usage" id="usage" aria-label="Token usage" data-section data-search-text="usage tokens tool duration">
+<div class="cc-section-head"><h2>Usage</h2><span>1 runs</span></div>
+<dl class="cc-usage-totals"><dt>Total runs</dt><dd>1</dd><dt>Tokens (in / out / cache)</dt><dd><span class="cc-muted">unavailable — host did not report token counts</span></dd><dt>Total tokens</dt><dd><span class="cc-muted">unavailable</span></dd><dt>Tool uses</dt><dd>0</dd><dt>Total duration</dt><dd>0ms</dd><dt>Compactions</dt><dd><span class="cc-muted">unavailable — host did not report compaction events</span></dd></dl>
+<div class="cc-usage-insights">
+<article class="cc-insight"><span>Longest phase</span><a href="#phase-architecture">architecture</a><strong>0ms</strong></article>
+<article class="cc-insight"><span>Most tool-heavy</span><a href="#phase-architecture">architecture</a><strong>0 tools</strong></article>
+</div>
+<table class="cc-usage-table">
+<thead><tr><th>Phase</th><th>Runs</th><th>Tokens</th><th>Tools</th><th>Duration</th><th>Compactions</th><th>State</th></tr></thead>
+<tbody><tr><td><a href="#phase-architecture">architecture</a></td><td>1</td><td>unavailable</td><td><span class="cc-bar-cell"><span class="cc-bar" style="--cc-bar:3%"></span><span>0</span></span></td><td><span class="cc-bar-cell"><span class="cc-bar" style="--cc-bar:3%"></span><span>0ms</span></span></td><td>unavailable</td><td>complete</td></tr></tbody>
+</table>
+</section>
+<section class="cc-card cc-timeline" aria-label="Activity timeline" data-section data-search-text="activity timeline sessions">
+<div class="cc-section-head"><h2>Activity timeline</h2><span>newest first</span></div>
+<table class="cc-timeline-table">
+<thead><tr><th>When</th><th>Phase</th><th>Status</th><th>Turns</th><th>Tools</th><th>Tokens</th><th>Duration</th></tr></thead>
+<tbody><tr><td>2026-08-27T00:25:35.250Z</td><td><a href="#phase-architecture">architecture</a></td><td>completed</td><td>0</td><td>0</td><td>unavailable</td><td>0ms</td></tr></tbody>
+</table>
+
+</section>
+<section class="cc-card cc-rollup" aria-label="Open questions roll-up" data-section data-search-text="open questions">
+<div class="cc-section-head"><h2>Open questions</h2><span>4 unique</span></div>
+<div class="cc-kind-summary"><span class="cc-kind-chip"><strong>3</strong>runtime-test</span><span class="cc-kind-chip"><strong>1</strong>maintainer-decision</span></div>
+<div class="cc-question-bucket"><h3>architecture (4)</h3><a class="cc-pill cc-pill-target" href="#phase-architecture">jump to phase</a><ul class="cc-question-list"><li><span class="cc-pill">runtime-test</span> No release or minified build has ever been produced, so R8/ProGuard effects on the kotlinx-serialization protocol models are unverified. proguard-rules.pro exists but has never been exercised.<div class="cc-question-reason">Needs an actual assembleRelease plus an on-device run; no amount of static reading settles whether the wire models survive shrinking.</div></li><li><span class="cc-pill">maintainer-decision</span> AgentProvider.kt and the PROVIDERS table in wrapper.mjs encode the same contract in two languages with nothing enforcing agreement. Drift fails at run time rather than build time.<div class="cc-question-reason">Whether to generate one from the other, add a cross-language test, or accept the duplication is a design ruling, not a finding.</div></li><li><span class="cc-pill">runtime-test</span> Whether the dataSync foreground service actually keeps a long agent run alive under real memory pressure and Doze is unmeasured.<div class="cc-question-reason">Requires a long-running device test under induced memory pressure.</div></li><li><span class="cc-pill">runtime-test</span> The provider v1 ships against has never made a live call from the handset; every device run so far used openai-completions via Ollama Cloud.<div class="cc-question-reason">Needs a device session with an Anthropic key; the code path differs from the one already verified.</div></li></ul></div>
+</section>
+<section class="cc-card cc-rollup" id="post-pipeline" aria-label="Post-pipeline work" data-section data-search-text="post pipeline spikes amendments deltas decisions reruns">
+<div class="cc-section-head"><h2>Post-pipeline work</h2><span>4 pending · 4 total</span></div>
+<p class="cc-muted">Optional work after the active pipeline; these items do not make pipeline completion partial.</p>
+<ul class="cc-question-list"><li><span class="cc-kind">amendment</span><strong>pp-arch-1</strong> Pin distributionSha256Sum in android/gradle/wrapper/gradle-wrapper.properties. Currently unpinned; noted in android/README.md as a supply-chain follow-up.<span class="cc-pill cc-pill-target">from architecture</span><span class="cc-pill">pending</span></li><li><span class="cc-kind">amendment</span><strong>pp-arch-2</strong> Persist the selected provider. The app resets to Anthropic on relaunch even when another provider&#39;s key is stored, so the chooser must be re-selected each launch.<span class="cc-pill cc-pill-target">from architecture</span><span class="cc-pill">pending</span></li><li><span class="cc-kind">amendment</span><strong>pp-arch-3</strong> Stop forwarding wrapper stderr to logcat in release builds, or redact it. Wrapper diagnostics echo CLI arguments, so a credential mistyped into a field that becomes an argument can reach the device log.<span class="cc-pill cc-pill-target">from architecture</span><span class="cc-pill">pending</span></li><li><span class="cc-kind">spike</span><strong>pp-arch-4</strong> Decide whether to consume pi-mono&#39;s unreleased commits. The fork at forks/pi-mono is 31 commits past the 0.84.3 bump, several touching the openai-completions path this project uses. Taking them means building from source instead of the registry, trading away npm ci reproducibility.<span class="cc-pill cc-pill-target">from architecture</span><span class="cc-pill">pending</span></li></ul>
+</section>
+<section class="cc-card cc-closeouts" id="closeouts" aria-label="Closeouts" data-section data-search-text="closeouts summaries results">
+<div class="cc-section-head"><h2>Closeouts</h2><span>2 summaries</span></div>
+<div class="cc-closeouts-list"><article class="cc-closeout-row" data-search-text="2026-08-27 architecture 2026-08-27-architecture.md Pi-Filling is a three-layer stack that is *nested* at runtime rather than merely layered: the Android app (Layer 1) ships the Node wrapper (Layer 3) as an APK asset and installs it into an Alpine rootfs hosted by proot (Layer 2). The only contract between layers is a small JSONL …"><div><span class="cc-closeout-date">2026-08-27</span><a class="cc-phase-jump" href="#phase-architecture">architecture</a></div><div><a href="closeouts/2026-08-27-architecture.md">summary</a><code>2026-08-27-architecture.md</code><p class="cc-closeout-summary">Pi-Filling is a three-layer stack that is *nested* at runtime rather than merely layered: the Android app (Layer 1) ships the Node wrapper (Layer 3) as an APK asset and installs it into an Alpine rootfs hosted by proot (Layer 2). The only contract between layers is a small JSONL …</p></div><div class="cc-closeout-results"><a class="cc-pill cc-pill-ok" href="findings/architecture/architecture-map.md">primary result</a><a class="cc-pill" href="findings/public-surfaces/public-surfaces.md">secondary</a><a class="cc-pill" href="findings/runtime-lifecycle/runtime-lifecycle.md">secondary</a><a class="cc-pill" href="findings/state-and-storage/state-and-storage.md">secondary</a><a class="cc-pill" href="findings/build-and-deploy/build-and-deploy.md">secondary</a><a class="cc-pill" href="findings/config-model/config-model.md">secondary</a></div></article>
+<article class="cc-closeout-row" data-search-text="2026-05-02 framework-feedback-pass 2026-05-02-framework-feedback-pass.md This was a meta-session: instead of using CodeCartographer to analyze a codebase, the session edited CodeCartographer based on accumulated feedback from 13 prior agent sessions. Six spec-blockers landed, five spec-clarifications applied, fourteen nice-to-haves recorded in `BACKLO…"><div><span class="cc-closeout-date">2026-05-02</span><a class="cc-phase-jump" href="#phase-framework-feedback-pass">framework-feedback-pass</a></div><div><a href="closeouts/2026-05-02-framework-feedback-pass.md">summary</a><code>2026-05-02-framework-feedback-pass.md</code><p class="cc-closeout-summary">This was a meta-session: instead of using CodeCartographer to analyze a codebase, the session edited CodeCartographer based on accumulated feedback from 13 prior agent sessions. Six spec-blockers landed, five spec-clarifications applied, fourteen nice-to-haves recorded in `BACKLO…</p></div><div class="cc-closeout-results"><span class="cc-pill cc-pill-muted">non-phase closeout</span></div></article></div>
+</section>
+<footer class="cc-footer">
+<p>Generated by codecartographer-pi v0.16.0 at 2026-08-27T00:25:35.253Z.</p>
+<p class="cc-footer-hint">Regenerate via <code>/codecarto-dashboard</code> · narrate via <code>/codecarto-dashboard --narrate</code>.</p>
+</footer>
+</div>
+</main>
+<script id="cc-dashboard-data" type="application/json">{"project":"Pi-Filling","generatedAt":"2026-08-27T00:25:35.253Z","packageVersion":"0.16.0","phases":[{"id":"architecture","status":"complete","purpose":"Build the layer map, dependency direction, public surfaces, and high-level system structure.","primary_output":"findings/architecture/architecture-map.md","primary_output_exists":true,"secondary_outputs":[{"path":"findings/public-surfaces/public-surfaces.md","exists":true},{"path":"findings/runtime-lifecycle/runtime-lifecycle.md","exists":true},{"path":"findings/state-and-storage/state-and-storage.md","exists":true},{"path":"findings/build-and-deploy/build-and-deploy.md","exists":true},{"path":"findings/config-model/config-model.md","exists":true}]}],"post_pipeline":[{"id":"pp-arch-1","kind":"amendment","description":"Pin distributionSha256Sum in android/gradle/wrapper/gradle-wrapper.properties. Currently unpinned; noted in android/README.md as a supply-chain follow-up.","source_phase":"architecture","status":"pending"},{"id":"pp-arch-2","kind":"amendment","description":"Persist the selected provider. The app resets to Anthropic on relaunch even when another provider's key is stored, so the chooser must be re-selected each launch.","source_phase":"architecture","status":"pending"},{"id":"pp-arch-3","kind":"amendment","description":"Stop forwarding wrapper stderr to logcat in release builds, or redact it. Wrapper diagnostics echo CLI arguments, so a credential mistyped into a field that becomes an argument can reach the device log.","source_phase":"architecture","status":"pending"},{"id":"pp-arch-4","kind":"spike","description":"Decide whether to consume pi-mono's unreleased commits. The fork at forks/pi-mono is 31 commits past the 0.84.3 bump, several touching the openai-completions path this project uses. Taking them means building from source instead of the registry, trading away npm ci reproducibility.","source_phase":"architecture","status":"pending"}],"usage":{"version":1,"runs":[{"timestamp":"2026-08-27T00:25:35.250Z","phase":"architecture","status":"completed","turn_count":0,"tool_uses":0,"duration_ms":0,"tokens":{"input":0,"output":0,"cache_write":0},"recorded_by":"mcp-complete"}]},"closeouts":[{"date":"2026-05-02","phaseOrModule":"framework-feedback-pass","fileName":"2026-05-02-framework-feedback-pass.md","summary":"This was a meta-session: instead of using CodeCartographer to analyze a codebase, the session edited CodeCartographer based on accumulated feedback from 13 prior agent sessions. Six spec-blockers landed, five spec-clarifications applied, fourteen nice-to-haves recorded in `BACKLO…"},{"date":"2026-08-27","phaseOrModule":"architecture","fileName":"2026-08-27-architecture.md","summary":"Pi-Filling is a three-layer stack that is *nested* at runtime rather than merely layered: the Android app (Layer 1) ships the Node wrapper (Layer 3) as an APK asset and installs it into an Alpine rootfs hosted by proot (Layer 2). The only contract between layers is a small JSONL …"}]}</script>
+<script>
+(() => {
+  const q = document.querySelector('[data-search]');
+  const filters = [...document.querySelectorAll('[data-filter]')];
+  const sections = [...document.querySelectorAll('[data-section]')];
+  let active = 'all';
+  function textFor(el){ return ((el.dataset.searchText || '') + ' ' + el.textContent).toLowerCase(); }
+  function apply(){
+    const terms = (q?.value || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+    for (const el of sections) {
+      const status = el.dataset.status;
+      const statusOk = active === 'all' || !status || status === active;
+      const searchOk = terms.every(t => textFor(el).includes(t));
+      el.hidden = !(statusOk && searchOk);
+    }
+  }
+  q?.addEventListener('input', apply);
+  for (const btn of filters) btn.addEventListener('click', () => {
+    active = btn.dataset.filter || 'all';
+    filters.forEach(b => b.classList.toggle('is-active', b === btn));
+    apply();
+  });
+  document.querySelector('[data-export]')?.addEventListener('click', () => {
+    const raw = document.getElementById('cc-dashboard-data')?.textContent || '{}';
+    const blob = new Blob([JSON.stringify(JSON.parse(raw), null, 2) + '\n'], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'codecartographer-dashboard.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  document.querySelector('[data-sidebar-toggle]')?.addEventListener('click', () => document.body.classList.toggle('cc-sidebar-open'));
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') { if (q) q.value = ''; active = 'all'; filters.forEach(b => b.classList.toggle('is-active', b.dataset.filter === 'all')); apply(); document.body.classList.remove('cc-sidebar-open'); }
+  });
+})();
+</script>
+</body>
+</html>

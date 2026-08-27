@@ -1,0 +1,89 @@
+schema_version: 1
+phase_id: architecture
+owner_notes:
+  - Mapped 82 tracked files across three named product layers (Layer 1 Android app, Layer 2 proot/Alpine sandbox, Layer 3 Node wrapper) plus one non-product module (spike-host-alpine, historical spike evidence).
+  - Dependency graph is acyclic. Lowest stable layer inside the repo is wrapper/Protocol.kt and sandbox/SandboxState.kt - pure data and constants, imported by others, importing nothing from the project.
+  - Layer 3 is shipped inside Layer 1 as an APK asset and copied into Layer 2's filesystem at provisioning time, so the layers are nested at runtime rather than merely adjacent. Confirmed by inspecting the built APK.
+  - 'All five declared secondary outputs were written, not deferred: public-surfaces, runtime-lifecycle, state-and-storage, build-and-deploy, config-model.'
+  - 'Evidence basis is unusually strong for an architecture pass: the sandbox, protocol and storage paths were exercised on physical hardware during this session, so several conclusions are runtime-verified rather than inferred. See android/VERIFICATION.md.'
+open_questions:
+  - id: q-r8-release-shape
+    kind: runtime-test
+    description: No release or minified build has ever been produced, so R8/ProGuard effects on the kotlinx-serialization protocol models are unverified. proguard-rules.pro exists but has never been exercised.
+    deferred_reason: Needs an actual assembleRelease plus an on-device run; no amount of static reading settles whether the wire models survive shrinking.
+  - id: q-provider-table-drift
+    kind: maintainer-decision
+    description: AgentProvider.kt and the PROVIDERS table in wrapper.mjs encode the same contract in two languages with nothing enforcing agreement. Drift fails at run time rather than build time.
+    deferred_reason: Whether to generate one from the other, add a cross-language test, or accept the duplication is a design ruling, not a finding.
+  - id: q-fgs-survival
+    kind: runtime-test
+    description: Whether the dataSync foreground service actually keeps a long agent run alive under real memory pressure and Doze is unmeasured.
+    deferred_reason: Requires a long-running device test under induced memory pressure.
+  - id: q-anthropic-on-device
+    kind: runtime-test
+    description: The provider v1 ships against has never made a live call from the handset; every device run so far used openai-completions via Ollama Cloud.
+    deferred_reason: Needs a device session with an Anthropic key; the code path differs from the one already verified.
+carry_forward: []
+carry_forward_closures: []
+open_question_closures: []
+post_pipeline:
+  - id: pp-arch-1
+    kind: amendment
+    description: Pin distributionSha256Sum in android/gradle/wrapper/gradle-wrapper.properties. Currently unpinned; noted in android/README.md as a supply-chain follow-up.
+  - id: pp-arch-2
+    kind: amendment
+    description: Persist the selected provider. The app resets to Anthropic on relaunch even when another provider's key is stored, so the chooser must be re-selected each launch.
+  - id: pp-arch-3
+    kind: amendment
+    description: Stop forwarding wrapper stderr to logcat in release builds, or redact it. Wrapper diagnostics echo CLI arguments, so a credential mistyped into a field that becomes an argument can reach the device log.
+  - id: pp-arch-4
+    kind: spike
+    description: Decide whether to consume pi-mono's unreleased commits. The fork at forks/pi-mono is 31 commits past the 0.84.3 bump, several touching the openai-completions path this project uses. Taking them means building from source instead of the registry, trading away npm ci reproducibility.
+decisions:
+  - Scoped this run to the architecture-only pipeline. The user asked for a structural read of what exists, not a port or rewrite, and codecarto_switch_pipeline can add contracts/protocols later without losing this phase.
+proposed_conventions:
+  - name: Layer numbering is a shared vocabulary
+    rule: Refer to the Android app as Layer 1, the proot/Alpine sandbox as Layer 2, and the Node wrapper as Layer 3. The numbering is already used consistently in docs, code comments and commit messages; keep it rather than introducing parallel names.
+    evidence: ARCHITECTURE.md, V1_SPEC.md, LinuxSandboxManager KDoc, commit history.
+  - name: Cross-boundary contracts are mirrored by hand and must be changed in pairs
+    rule: The provider table, the RPC method and error-code names, and the wrapper's exit codes each exist in both Kotlin and JavaScript with no generator. Changing either side without the other is a run-time failure, so treat them as a single edit.
+    evidence: AgentProvider.kt vs PROVIDERS in wrapper.mjs; Protocol.kt vs DESIGN.md.
+  - name: Vendored code is re-vendored, not patched
+    rule: build-proot.sh is byte-identical to Kai's apart from output paths. Android-specific fixes belong in our own layer, not in the vendored script.
+    evidence: proot-bootstrap/VENDORED.md; the libtalloc SONAME fix was placed in LinuxSandboxManager for exactly this reason.
+closeout_summary: Architecture mapped across three product layers and one historical spike module. Dependency direction is acyclic with Protocol.kt and SandboxState.kt as the stable base. All five secondary outputs written. Coverage COMPLETE; four residual unknowns recorded as open questions, all requiring a runtime test or a maintainer ruling rather than further reading.
+closeout_content: |
+  # Closeout - architecture
+
+  ## Summary
+
+  Pi-Filling is a three-layer stack that is *nested* at runtime rather than merely
+  layered: the Android app (Layer 1) ships the Node wrapper (Layer 3) as an APK
+  asset and installs it into an Alpine rootfs hosted by proot (Layer 2). The only
+  contract between layers is a small JSONL RPC over stdio - four methods, five
+  error codes, four wrapper exit codes, plus a forwarded pi-agent-core event
+  stream.
+
+  ## What the map is confident about
+
+  - Dependency direction is acyclic; `wrapper/Protocol.kt` and
+    `sandbox/SandboxState.kt` are the stable base.
+  - The agent loop lives entirely in Layer 3; Layer 1 is supervision, storage and
+    UI. That is what makes the UI replaceable without touching agent behaviour.
+  - Durable state is small and well-bounded: per-provider encrypted credentials,
+    the sandbox tree with a versioned marker, and `memory.md` inside the user's
+    repository.
+
+  ## What it is deliberately not confident about
+
+  Four open questions, none closable by reading: release/R8 shape, the
+  hand-mirrored provider table, foreground-service survival under pressure, and
+  the fact that the provider v1 targets has never made a live call from a device.
+
+  ## Note on evidence quality
+
+  Unusually for an architecture pass, much of this is runtime-verified rather than
+  inferred - the sandbox, protocol and storage paths were exercised on a physical
+  handset in the same session, and six defects found there are recorded in
+  `android/VERIFICATION.md`. Where a conclusion rests only on reading, it is
+  marked `strong inference` rather than `observed fact`.
