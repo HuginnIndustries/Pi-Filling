@@ -24,6 +24,7 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import java.io.BufferedWriter
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
@@ -52,6 +53,12 @@ class WrapperClient(
     private val callTimeoutMs: Long = DEFAULT_CALL_TIMEOUT_MS,
     /** Bound on the startup handshake. See [awaitReady]. */
     private val readyTimeoutMs: Long = DEFAULT_READY_TIMEOUT_MS,
+    /**
+     * Capabilities this host offers the agent. Empty by default, which is a
+     * valid configuration meaning "this build offers the agent nothing" — every
+     * request is then refused as unsupported rather than ignored.
+     */
+    private val hostCapabilities: HostCapabilityRegistry = HostCapabilityRegistry(),
 ) {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -195,6 +202,8 @@ class WrapperClient(
 
         when {
             obj.containsKey("event") -> handleEvent(obj)
+            // The reverse direction: the agent asking us for something.
+            obj.containsKey("host_request") -> handleHostRequest(obj)
             obj.containsKey("id") -> handleResponse(obj)
             else -> Log.w(TAG, "wrapper line had neither event nor id: $line")
         }
@@ -220,6 +229,50 @@ class WrapperClient(
         // policy changed underneath us.
         if (!_events.tryEmit(WrapperEvent(type, data))) {
             Log.w(TAG, "event dropped despite DROP_OLDEST; overflow policy changed? type=$type")
+        }
+    }
+
+    /**
+     * Serve one capability request from the agent.
+     *
+     * Dispatched onto its own coroutine rather than handled inline: a capability
+     * can be slow — speech runs for as long as the sentence does — and the
+     * caller here is the stdout reader. Blocking it would stall the whole event
+     * stream behind one spoken reply.
+     */
+    private fun handleHostRequest(obj: JsonObject) {
+        val req = obj["host_request"]?.jsonObject ?: return
+        val id = (req["id"] as? JsonPrimitive)?.intOrNull
+        val capability = req["capability"]?.jsonPrimitive?.contentOrNull
+        if (id == null || capability == null) {
+            Log.w(TAG, "malformed host_request: $req")
+            return
+        }
+        val params = req["params"]?.jsonObject ?: JsonObject(emptyMap())
+
+        scope.launch(Dispatchers.IO) {
+            val outcome = hostCapabilities.dispatch(capability, params)
+            val response = buildJsonObject {
+                putJsonObject("host_response") {
+                    put("id", id)
+                    when (outcome) {
+                        is HostCapabilityRegistry.Result.Ok -> {
+                            put("ok", true)
+                            put("result", outcome.result)
+                        }
+                        is HostCapabilityRegistry.Result.Refused -> {
+                            put("ok", false)
+                            putJsonObject("error") {
+                                put("code", outcome.code)
+                                put("message", outcome.message)
+                            }
+                        }
+                    }
+                }
+            }
+            // The wrapper may have died while a capability was running; it is
+            // not worth surfacing, the agent is gone either way.
+            runCatching { writeLine(response.toString()) }
         }
     }
 

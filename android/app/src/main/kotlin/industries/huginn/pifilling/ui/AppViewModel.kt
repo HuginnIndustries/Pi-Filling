@@ -73,6 +73,21 @@ class AppViewModel(private val agent: AgentController) : ViewModel() {
         }
     }
 
+    private val _voiceEnabled = MutableStateFlow(agent.voiceSettings.enabled)
+    val voiceEnabled: StateFlow<Boolean> = _voiceEnabled.asStateFlow()
+
+    /**
+     * The user's own switch. Deliberately not reachable by the agent: it can ask
+     * what the setting is and can toggle auto-speak, but turning speech on is a
+     * decision a model should not be able to make for someone whose phone is in
+     * a pocket.
+     */
+    fun setVoiceEnabled(enabled: Boolean) {
+        agent.voiceSettings.enabled = enabled
+        _voiceEnabled.value = enabled
+        if (!enabled) viewModelScope.launch { agent.stopSpeaking() }
+    }
+
     fun clearGitHubToken() {
         viewModelScope.launch(Dispatchers.IO) {
             agent.keyStore.clearGitHubToken()

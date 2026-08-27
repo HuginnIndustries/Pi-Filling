@@ -8,6 +8,9 @@ import industries.huginn.pifilling.sandbox.AgentProvider
 import industries.huginn.pifilling.sandbox.SandboxState
 import industries.huginn.pifilling.service.DaemonService
 import industries.huginn.pifilling.storage.SecureKeyStore
+import industries.huginn.pifilling.voice.TtsCapabilities
+import industries.huginn.pifilling.voice.VoiceSettings
+import industries.huginn.pifilling.wrapper.HostCapabilityRegistry
 import industries.huginn.pifilling.wrapper.WrapperClient
 import industries.huginn.pifilling.wrapper.WrapperEventType
 import industries.huginn.pifilling.wrapper.WrapperProcessExitedException
@@ -49,6 +52,18 @@ class AgentController(
     }
 
     private val scope = CoroutineScope(SupervisorJob() + exceptionHandler)
+
+    /**
+     * What this host is willing to do on the agent's behalf. Built once and
+     * allow-listed here: the agent may ask for a capability by name, but only
+     * Layer 1 decides what exists. See wrapper/HostCapability.kt.
+     */
+    val voiceSettings = VoiceSettings(appContext)
+    private val tts = TtsCapabilities(appContext, voiceSettings)
+    private val hostCapabilities = HostCapabilityRegistry(tts.all())
+
+    /** Stop any speech in progress. Exposed so the UI can offer a stop control. */
+    suspend fun stopSpeaking() = tts.stop()
 
     private val _session = MutableStateFlow<SessionState>(SessionState.Idle)
     val session: StateFlow<SessionState> = _session.asStateFlow()
@@ -117,7 +132,7 @@ class AgentController(
                 val proc = withContext(Dispatchers.IO) {
                     sandbox.startWrapper(apiKey, repoGuestPath, provider, model, gitHubToken = gitHubToken)
                 }
-                val wc = WrapperClient(proc, scope)
+                val wc = WrapperClient(proc, scope, hostCapabilities = hostCapabilities)
                 process = proc
                 client = wc
 

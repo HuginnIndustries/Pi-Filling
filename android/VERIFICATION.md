@@ -7,6 +7,100 @@ from assumption.
 
 Device serials and any device content are deliberately excluded from this file.
 
+## 2026-08-27 — the host-capability channel speaks
+
+First end-to-end exercise of the reverse RPC: a tool inside the sandbox (Layer 3)
+asking the Android app (Layer 1) to do something the sandbox cannot do itself.
+Speech is the first capability because it is the one whose success or failure is
+unmistakable from outside the process.
+
+### A seventh bug: a wrapper change never reaches a provisioned sandbox
+
+The first run looked like the tools were missing entirely. The wrapper logged
+
+```
+tools: read, bash, edit, write
+```
+
+with no `host capabilities:` line, so `voice_speak` was not registered — on a
+build whose assets plainly contained it. `deployWrapper` ran only inside
+`setup()`, which short-circuits on the completion marker, so **every wrapper
+change after first provisioning was invisible on device**. Every earlier run in
+this file exercised whatever wrapper happened to be deployed first, which is
+worth knowing when re-reading them.
+
+Fixed with a content digest rather than a hand-bumped version, because a version
+constant only works when someone remembers to bump it: the marker now carries
+`wrapper=<sha256 of the asset tree, first 16 hex>` and `ensureCurrent()`
+redeploys when it differs. Observed on the next launch:
+
+```
+LinuxSandboxManager: bundled wrapper differs from the deployed one; redeploying
+.setup-complete: alpine=3.21.3 abi=arm64-v8a setup=4 wrapper=fb92968243ac1b41
+wrapper: host capabilities: voice_speak, voice_config
+```
+
+### A harness bug that read as two model failures
+
+Twice the agent answered by running `bash` instead of calling the tool, which
+looked like poor tool selection. It was not. `adb shell input text` splits on
+spaces, so only the first word of each prompt was ever typed — the transcript
+showed `you: Call`. Escaping spaces as `%s` fixed it, and the model chose the
+tool correctly on the first properly-delivered prompt.
+
+Compounding it, `memory.md` in the sandbox repo — residue from an earlier run in
+this file — told the agent it had written a `hello.sh` "that prints a greeting",
+so a one-word prompt plus that memory made running the script a reasonable read.
+Moved aside for the test.
+
+### Passed
+
+Voice off and voice on, same prompt, same session shape — a pair that
+discriminates, because a capability that was never registered would refuse in
+both.
+
+| | transcript | Layer 1 | system engine |
+|---|---|---|---|
+| speech **off** | `▸ voice_speak` → agent reports speech is disabled and continues in text | no `TtsCapability` log — refused before reaching the engine | nothing |
+| speech **on** | `▸ voice_speak` → "The requested phrase has been spoken" | `TtsCapability: speaking 16 chars in 1 piece(s)` | `SamsungTTS [Synthesize] eng-USA … 24000hz … 1.66s`, `Caller[…industries.huginn.pif…]` |
+
+The spoken phrase was 16 characters, matching the chunker's count, and the
+synthesis request names this package as caller — so the audio came from this
+request rather than from anything else on the device.
+
+Also passed:
+
+- The refusal path is the *host's*, not a guest-side shortcut: the tool result
+  distinguishes `not_permitted` from `unsupported_capability`, and only the
+  former appeared.
+- `enabled` persists to `shared_prefs/pifilling_voice.xml`, defaulting to
+  `false`.
+
+### A defect the test surfaced, and the fix
+
+The switch was written into the idle branch of the session screen, so it existed
+only *before* a session — speech could not be turned off while the agent was
+speaking, which is precisely when a person reaches for it. Moved to a row that
+renders in every state; switching it off already calls `stopSpeaking()`.
+Verified after the fix: the switch is present with the composer on screen.
+
+### Not proved
+
+- **That audio was audible.** The synthesis request and its duration are
+  observed; the speaker output is not. A muted device would produce the same log.
+- **Chunking of long text.** One 16-character utterance is one piece. The
+  multi-piece path and `QUEUE_ADD` ordering are covered by unit tests only.
+- **Interruption.** `stop()` mid-utterance was not exercised on device.
+- **A device with no TTS engine.** The `unsupported_capability` path is unit-
+  tested; this phone has a working engine, so it cannot be produced here.
+
+### Cleanup performed
+
+Speech was switched back off, the state it was in before the run
+(`enabled=false` confirmed in prefs). The confounding `memory.md` — itself
+residue from an earlier run — was moved aside to `memory.md.bak` inside
+app-private storage rather than deleted. No device content was read or copied.
+
 ## 2026-08-27 — GitHub auth plumbing
 
 Plan step C, first half. V1_SPEC deferred "PAT vs OAuth device flow" to the start

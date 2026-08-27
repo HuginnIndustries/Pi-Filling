@@ -170,12 +170,20 @@ class LinuxSandboxManager(
     suspend fun ensureCurrent() {
         if (!markerFile.exists()) return
         val have = readSetupVersion()
-        if (have >= SETUP_VERSION) return
+        val wrapperStale = readDeployedWrapperDigest() != bundledWrapperDigest()
+        if (have >= SETUP_VERSION && !wrapperStale) return
         runCatching {
             val executor = createExecutor()
             if (have < 2) configureGitIdentity(executor)
             if (have < 3) installPackages(executor)
             if (have < 4) configureGitCredentialHelper(executor)
+            // Not version-gated: the wrapper changes far more often than the
+            // sandbox recipe does, and gating it on a hand-bumped number is a
+            // standing invitation to ship a wrapper that never reaches a device.
+            if (wrapperStale) {
+                Log.i(TAG, "bundled wrapper differs from the deployed one; redeploying")
+                deployWrapper(executor)
+            }
         }
             .onSuccess {
                 writeMarker()
@@ -261,9 +269,52 @@ class LinuxSandboxManager(
         check(result.success) { "git credential helper config failed: ${result.stderr.take(300)}" }
     }
 
+    /**
+     * Content digest of the wrapper bundled in this APK.
+     *
+     * Deploying the wrapper was originally a provisioning step, which meant a
+     * new wrapper only reached a device that had never provisioned. Every
+     * wrapper change after the first install was silently invisible — the
+     * symptom was an agent missing tools the build had definitely registered.
+     * Comparing content is what makes that impossible to get wrong; a
+     * hand-bumped version number would only work when someone remembered.
+     */
+    private fun bundledWrapperDigest(): String = runCatching {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        fun walk(path: String) {
+            val children = context.assets.list(path)
+            if (children.isNullOrEmpty()) {
+                runCatching {
+                    context.assets.open(path).use { input ->
+                        digest.update(path.toByteArray())
+                        val buf = ByteArray(16 * 1024)
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n <= 0) break
+                            digest.update(buf, 0, n)
+                        }
+                    }
+                }
+            } else {
+                children.sorted().forEach { walk("$path/$it") }
+            }
+        }
+        walk("wrapper")
+        digest.digest().joinToString("") { "%02x".format(it) }.take(16)
+    }.getOrDefault("unknown")
+
+    private fun readDeployedWrapperDigest(): String =
+        runCatching {
+            markerFile.readText()
+                .substringAfter("wrapper=", "")
+                .trim()
+                .takeWhile { !it.isWhitespace() }
+        }.getOrDefault("")
+
     private fun writeMarker() {
         markerFile.writeText(
-            "alpine=${RootfsDownloader.ALPINE_VERSION} abi=$deviceAbi setup=$SETUP_VERSION\n",
+            "alpine=${RootfsDownloader.ALPINE_VERSION} abi=$deviceAbi setup=$SETUP_VERSION " +
+                "wrapper=${bundledWrapperDigest()}\n",
         )
     }
 

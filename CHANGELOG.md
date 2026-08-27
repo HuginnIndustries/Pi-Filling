@@ -101,6 +101,61 @@ dependencies, docs) drove the following.
 - Recorded that `distributionSha256Sum` is still unpinned in
   `gradle-wrapper.properties`, as a supply-chain follow-up.
 
+### Stage 1.6: the host-capability channel, and speech on it
+
+The agent runs inside proot with no route to Android, so anything phone-native
+had to be *asked for* rather than executed. This adds the asking, and the first
+thing worth asking for.
+
+#### Added — the channel
+
+- **A reverse RPC over the existing JSONL framing**
+  (`node-wrapper/src/host-channel.mjs`): `host_request` out, `host_response`
+  back, correlated by id, bounded by a per-request timeout. Built under three
+  constraints so it stays promotable to a pi-level mechanism rather than
+  remaining ours: capability names are namespaced and host-neutral (`tts.speak`,
+  never `androidSpeak`), no host specifics appear on the wire, and the transport
+  is injected rather than imported. A test asserts no platform string reaches
+  the wire.
+- **The Android side** (`wrapper/HostCapability.kt`): an interface, a refusal
+  type carrying `unsupported_capability` / `not_permitted`, and an allow-listed
+  registry that never throws — every outcome becomes a `host_response`, because
+  a capability that blows up must not take the reader thread with it.
+  Capabilities are registered by Layer 1 and addressed by name, so the agent may
+  *ask* for one but can never *introduce* one. `WrapperClient` dispatches them
+  off the stdout reader so a slow capability cannot stall streaming.
+
+#### Added — speech
+
+- `voice_speak` and `voice_config`, ported from
+  `TheAmericanMaker/pi-termux-android-voice` (MIT, attributed in-file). The
+  surface is the original's; the transport is not — Termux shelled out to
+  `termux-tts-speak`, which has no equivalent inside proot. The substitution is
+  an upgrade: a real `TextToSpeech.stop()`, real chunking driven by
+  `UtteranceProgressListener` rather than guessed timing, and no Termux:API to
+  install. Slash commands were dropped as TUI affordances; auto-speak state
+  moved into the host, where it survives sandbox rebuilds.
+- **Speech is off until a person turns it on.** The agent can read the setting
+  and toggle auto-speak, but cannot enable speech for itself — a model should
+  not be able to start talking out of someone's pocket. Tools degrade rather
+  than throw when refused, and are told plainly when retrying is pointless.
+
+#### Fixed — a wrapper change never reached a provisioned sandbox
+
+`deployWrapper` ran only inside `setup()`, which short-circuits on the
+completion marker, so any wrapper change after first provisioning was invisible
+on device — the phone silently ran the wrapper it was first given. The marker
+now carries a content digest of the wrapper asset tree and `ensureCurrent()`
+redeploys when it differs, so this cannot depend on remembering to bump a
+version. Found on hardware while testing the channel; see
+`android/VERIFICATION.md`.
+
+#### Fixed — speech could not be switched off while the agent spoke
+
+The voice switch was written into the idle branch of the session screen, so it
+existed only before a session started. Moved to a row present in every state;
+turning it off stops whatever is mid-utterance.
+
 ### Direction: mobile-native feature design
 
 - Recorded the design for a **host-capability channel** — a reverse RPC letting

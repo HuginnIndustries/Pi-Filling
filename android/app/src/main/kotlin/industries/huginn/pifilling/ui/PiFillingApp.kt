@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.material3.TextButton
@@ -156,6 +157,7 @@ private fun SessionScreen(vm: AppViewModel, session: SessionState) {
     // Default to a repo path inside the sandbox; a production UI lets the user pick/clone one.
     var repoPath by remember { mutableStateOf("/root/repo") }
     val hasStoredToken by vm.hasGitHubToken.collectAsStateWithLifecycle()
+    val voiceOn by vm.voiceEnabled.collectAsStateWithLifecycle()
     var gitHubToken by remember { mutableStateOf("") }
 
     LaunchedEffect(transcript.size) {
@@ -163,6 +165,22 @@ private fun SessionScreen(vm: AppViewModel, session: SessionState) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        // Reachable in every state, deliberately. It was first written into the
+        // idle branch only, which meant speech could not be switched off while
+        // the agent was speaking — the one moment someone actually reaches for
+        // it. The agent may toggle auto-speak but never this; that stays a
+        // person's decision, and turning it off stops whatever is mid-utterance.
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+        ) {
+            Switch(checked = voiceOn, onCheckedChange = vm::setVoiceEnabled)
+            Text(
+                if (voiceOn) "Agent may speak aloud" else "Agent stays silent",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
         when (session) {
             is SessionState.Idle, is SessionState.Failed -> {
                 OutlinedTextField(
