@@ -7,6 +7,36 @@ from assumption.
 
 Device serials and any device content are deliberately excluded from this file.
 
+## 2026-08-27 — wrapper-death hardening
+
+Plan step A. Four defect-report findings, all on the same failure path: what
+happens when the wrapper process dies or wedges.
+
+### Passed
+
+| # | Claim | Evidence |
+|---|---|---|
+| 22 | **A dead wrapper fails the session instead of killing the app** | Killed the wrapper's node process, then sent a prompt into it. App pid identical before and after (no crash or restart); logcat carried `AgentController: wrapper exited during prompt`; UI showed `Failed: wrapper exited (code 255)` and offered **Start session** again |
+
+The log line is the load-bearing part of that evidence. "The app did not crash"
+is equally consistent with "the exception never occurred" — only the log line
+shows the guarded path actually executed. Before the fix this exception left
+`scope.launch` into a scope with no `CoroutineExceptionHandler`, which on Android
+means the process dies.
+
+### Not proved
+
+- **The timeout path has never fired.** `WrapperTimeoutException`,
+  `withTimeoutOrNull` on `call` and `awaitReady` are implemented and compile, but
+  reproducing them needs a wrapper that is *alive and unresponsive*. No current
+  harness can produce that, so this is implemented-not-verified. Tracked as
+  `q-wrapper-timeout-unverified`.
+- **The registration race (3.1) was fixed by reasoning, not reproduced.** The
+  window is between a null `exitCode` read and a `ConcurrentHashMap` insert; the
+  fix re-checks after inserting. Correctness depends on `onProcessExit` setting
+  `exitCode` *before* draining `pending` — the code now says so, and reordering
+  those two statements silently reopens it.
+
 ## 2026-08-26 — model comparison, and a missing shell
 
 ### A sixth bug: the sandbox has no bash

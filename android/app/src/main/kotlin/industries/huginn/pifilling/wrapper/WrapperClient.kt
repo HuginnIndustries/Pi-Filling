@@ -5,6 +5,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -13,6 +14,7 @@ import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -46,6 +48,10 @@ import java.util.concurrent.atomic.AtomicInteger
 class WrapperClient(
     private val process: Process,
     private val scope: CoroutineScope,
+    /** Bound on a single request/response round trip. See [call]. */
+    private val callTimeoutMs: Long = DEFAULT_CALL_TIMEOUT_MS,
+    /** Bound on the startup handshake. See [awaitReady]. */
+    private val readyTimeoutMs: Long = DEFAULT_READY_TIMEOUT_MS,
 ) {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -61,6 +67,11 @@ class WrapperClient(
     private val _events = MutableSharedFlow<WrapperEvent>(
         replay = 0,
         extraBufferCapacity = 256,
+        // Drop the oldest, not the newest. With the default (SUSPEND) policy
+        // tryEmit refuses the *new* event and returns false, which is the
+        // opposite of what a live transcript wants: the newest agent events are
+        // the ones the UI most needs.
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
     val events: SharedFlow<WrapperEvent> = _events.asSharedFlow()
 
@@ -81,8 +92,18 @@ class WrapperClient(
         }
     }
 
-    /** Suspends until the wrapper announces `wrapper_ready`, or the process dies. */
-    suspend fun awaitReady(): ReadyEvent = readyDeferred.await()
+    /**
+     * Suspends until the wrapper announces `wrapper_ready`, the process dies, or
+     * [readyTimeoutMs] elapses.
+     *
+     * The timeout is not belt-and-braces: the wrapper boots Node and loads the
+     * agent stack inside Alpine under proot on a phone. If that wedges rather
+     * than exits, the process-death path never fires and this would otherwise
+     * suspend forever with the UI stuck on "connecting".
+     */
+    suspend fun awaitReady(): ReadyEvent =
+        withTimeoutOrNull(readyTimeoutMs) { readyDeferred.await() }
+            ?: throw WrapperTimeoutException("wrapper did not report ready within ${readyTimeoutMs}ms")
 
     suspend fun prompt(text: String): WrapperResponse =
         call(WrapperMethod.PROMPT, buildJsonObject { put("text", text) })
@@ -100,6 +121,18 @@ class WrapperClient(
         val deferred = CompletableDeferred<WrapperResponse>()
         pending[id] = deferred
 
+        // Re-check after registering, not only before. [onProcessExit] sets
+        // exitCode and *then* drains `pending`, so a request that registered
+        // after that drain would never be failed and its caller would suspend
+        // forever — the exact hang the drain exists to prevent. Because the
+        // ordering there is exit-code-first, observing a non-null exitCode here
+        // means the drain has already run or is guaranteed to see our entry.
+        // Do not reorder onProcessExit without revisiting this.
+        exitCode?.let {
+            pending.remove(id)
+            throw WrapperProcessExitedException(it)
+        }
+
         val request = buildJsonObject {
             put("id", id)
             put("method", method)
@@ -112,7 +145,15 @@ class WrapperClient(
             pending.remove(id)
             throw WrapperProcessExitedException(exitCode ?: -1).initCause(e) as WrapperProcessExitedException
         }
-        return deferred.await()
+
+        // A wrapper that is alive but wedged answers nothing, and the
+        // process-death path never fires. Bound the wait and clean up the
+        // registration so a timed-out id cannot be completed later.
+        return withTimeoutOrNull(callTimeoutMs) { deferred.await() }
+            ?: run {
+                pending.remove(id)
+                throw WrapperTimeoutException("wrapper did not answer $method within ${callTimeoutMs}ms")
+            }
     }
 
     private suspend fun writeLine(line: String) = writeMutex.withLock {
@@ -174,10 +215,11 @@ class WrapperClient(
             )
         }
 
-        // Backpressure-safe: tryEmit into the buffered flow; if a slow collector
-        // has filled the buffer we drop the oldest rather than block the reader.
+        // Backpressure-safe: DROP_OLDEST means tryEmit always succeeds, so the
+        // reader never blocks on a slow collector. A false return would mean the
+        // policy changed underneath us.
         if (!_events.tryEmit(WrapperEvent(type, data))) {
-            Log.w(TAG, "event buffer full; dropped $type")
+            Log.w(TAG, "event dropped despite DROP_OLDEST; overflow policy changed? type=$type")
         }
     }
 
@@ -229,6 +271,16 @@ class WrapperClient(
 
     private companion object {
         const val TAG = "WrapperClient"
+
+        /**
+         * A request is acknowledged, not completed, within this bound — `prompt`
+         * returns `started:true` immediately and the run streams as events — so
+         * this measures wrapper responsiveness, not agent runtime.
+         */
+        const val DEFAULT_CALL_TIMEOUT_MS = 30_000L
+
+        /** Node boot plus agent-stack load inside Alpine under proot on a phone. */
+        const val DEFAULT_READY_TIMEOUT_MS = 120_000L
         const val TAG_WRAPPER = "wrapper"
     }
 }

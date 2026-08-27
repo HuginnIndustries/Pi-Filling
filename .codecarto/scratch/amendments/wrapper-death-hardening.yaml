@@ -1,0 +1,53 @@
+schema_version: 1
+open_question_closures: []
+post_pipeline_closures:
+  - pp-ds-1
+  - pp-ds-2
+  - pp-ds-3
+  - pp-ds-5
+notes:
+  - 'Plan step A complete: the wrapper-death path is hardened. 3.1 (registration race), 2.1 (unguarded prompt) and 2.2 (no timeouts) are fixed, plus 1.1 (overflow policy) which shared the same file.'
+  - 'Verified on a Galaxy Z Fold 5 with a discriminating test rather than an absence of symptoms. The wrapper''s node process was killed, then a prompt sent into the dead wrapper. The app pid was unchanged before and after, and logcat carried ''AgentController: wrapper exited during prompt'' - which proves the guarded path was taken, not that the exception failed to occur. The UI showed ''Failed: wrapper exited (code 255)'' and offered Start session again.'
+  - 'The timeout path (2.2) is implemented and compiles but is NOT runtime-verified: reproducing it needs a wrapper that is alive and unresponsive, which no current harness can produce. Recorded as a new open question rather than claimed.'
+  - 3.1's fix depends on the ordering inside onProcessExit - exitCode is set before pending is drained - and the code now says so. Reordering those two statements silently reopens the race.
+  - pp-ds-4, 6, 7, 8, 9 remain open. pp-ds-9 (Android test harness) is plan step B and is the root cause behind this report's severity distribution.
+closeout_summary: 'Plan step A applied: findings 3.1, 2.1, 2.2 and 1.1 fixed and the wrapper-death path verified on hardware with a discriminating test. The timeout half of the work is implemented but not runtime-verified, and is tracked as a new open question rather than claimed as done.'
+closeout_content: |
+  # Amendment — wrapper-death hardening
+
+  ## What was applied
+
+  Plan step A from the rewritten ROADMAP. Four defect-report findings, all in the
+  same failure path:
+
+  - **3.1 (high)** `WrapperClient.call` re-checks `exitCode` *after* registering in
+    `pending`, closing the window where a process exit could drain the map between
+    the liveness check and the insert, orphaning the caller forever.
+  - **2.1 (high)** `AgentController.prompt` now catches both
+    `WrapperProcessExitedException` and `WrapperTimeoutException`, and the scope
+    carries a `CoroutineExceptionHandler` as a backstop.
+  - **2.2** `call` and `awaitReady` are bounded by `withTimeoutOrNull`, with a new
+    `WrapperTimeoutException` distinguishing "died" from "alive but wedged" —
+    different situations that deserve different messages.
+  - **1.1** The event flow now declares `onBufferOverflow = DROP_OLDEST`, making
+    behaviour match the comment that already claimed it.
+
+  ## Evidence
+
+  A discriminating test, not an absence of symptoms. The wrapper's node process was
+  killed and a prompt sent into the dead wrapper. Three observations together:
+
+  1. the app pid was identical before and after — no crash or restart;
+  2. logcat carried `AgentController: wrapper exited during prompt`, proving the
+     guarded path executed rather than the exception never arising;
+  3. the UI showed `Failed: wrapper exited (code 255)` and offered Start session.
+
+  Without (2) this would prove nothing: "no crash" is equally consistent with "no
+  exception".
+
+  ## What this does not establish
+
+  The timeout path is implemented and compiles but has never fired. Reproducing it
+  needs a wrapper that is alive and unresponsive, which no current harness can
+  produce — a gap that plan step B (an Android test harness) is the right place to
+  close.

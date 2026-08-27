@@ -2,6 +2,7 @@ package industries.huginn.pifilling.runtime
 
 import android.content.Context
 import android.util.Log
+import industries.huginn.pifilling.wrapper.WrapperTimeoutException
 import industries.huginn.pifilling.sandbox.LinuxSandboxManager
 import industries.huginn.pifilling.sandbox.AgentProvider
 import industries.huginn.pifilling.sandbox.SandboxState
@@ -9,8 +10,10 @@ import industries.huginn.pifilling.service.DaemonService
 import industries.huginn.pifilling.storage.SecureKeyStore
 import industries.huginn.pifilling.wrapper.WrapperClient
 import industries.huginn.pifilling.wrapper.WrapperEventType
+import industries.huginn.pifilling.wrapper.WrapperProcessExitedException
 import industries.huginn.pifilling.wrapper.WrapperResponse
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -35,7 +38,17 @@ class AgentController(
     val sandbox: LinuxSandboxManager,
     val keyStore: SecureKeyStore,
 ) {
-    private val scope = CoroutineScope(SupervisorJob())
+    // Without a handler an uncaught exception in any child reaches the thread's
+    // default handler, which on Android means the app dies. Every call site
+    // below should be catching, but the wrapper is a separate process that can
+    // fail in ways call sites do not anticipate, so this is the backstop rather
+    // than the plan. See CONVENTIONS.md C04.
+    private val exceptionHandler = CoroutineExceptionHandler { _, e ->
+        Log.e(TAG, "unhandled failure in agent scope", e)
+        _session.value = SessionState.Failed(e.message ?: e.javaClass.simpleName)
+    }
+
+    private val scope = CoroutineScope(SupervisorJob() + exceptionHandler)
 
     private val _session = MutableStateFlow<SessionState>(SessionState.Idle)
     val session: StateFlow<SessionState> = _session.asStateFlow()
@@ -126,9 +139,24 @@ class AgentController(
             return
         }
         scope.launch {
-            when (val resp = wc.prompt(text)) {
-                is WrapperResponse.Ok -> _session.value = SessionState.Streaming
-                is WrapperResponse.Err -> _session.value = SessionState.Failed("${resp.code}: ${resp.message}")
+            // The wrapper is a separate process under proot; it can die or wedge
+            // mid-request. Unguarded, both surfaced as an app crash rather than a
+            // failed session — this was the only unguarded caller (C04).
+            try {
+                when (val resp = wc.prompt(text)) {
+                    is WrapperResponse.Ok -> _session.value = SessionState.Streaming
+                    is WrapperResponse.Err ->
+                        _session.value = SessionState.Failed("${resp.code}: ${resp.message}")
+                }
+            } catch (e: WrapperProcessExitedException) {
+                Log.w(TAG, "wrapper exited during prompt", e)
+                _session.value = SessionState.Failed("wrapper exited (code ${e.exitCode})")
+                teardown()
+            } catch (e: WrapperTimeoutException) {
+                // Alive but unresponsive: leave the process up so abort/shutdown
+                // still have something to talk to, and let the user decide.
+                Log.w(TAG, "wrapper timed out during prompt", e)
+                _session.value = SessionState.Failed(e.message ?: "wrapper timed out")
             }
         }
     }

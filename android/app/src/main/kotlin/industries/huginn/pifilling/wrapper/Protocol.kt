@@ -71,6 +71,14 @@ object WrapperErrorCode {
     const val HANDLER_ERROR = "handler_error"
 }
 
+/**
+ * Thrown when the wrapper is still alive but has not answered within the
+ * client's bound. Distinct from [WrapperProcessExitedException]: the process
+ * died in that case and will not answer, whereas this one may still be running
+ * and simply wedged, which is a different thing to tell the user.
+ */
+class WrapperTimeoutException(message: String) : RuntimeException(message)
+
 /** Thrown when the wrapper process exits before answering an in-flight request. */
 class WrapperProcessExitedException(val exitCode: Int) :
     RuntimeException("wrapper process exited (code $exitCode) before responding")

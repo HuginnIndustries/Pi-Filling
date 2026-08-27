@@ -1,7 +1,7 @@
 project_name: Pi-Filling
 pipeline: workflow/pipeline-defect-scan.yaml
 current_phase: complete
-last_updated: "2026-08-27T00:41:24.728Z"
+last_updated: "2026-08-27T00:50:14.870Z"
 schema_version: 1
 phases:
   architecture:
@@ -54,10 +54,10 @@ phases:
       - findings/defect-scan/defect-report.md
     open_questions:
       -
+        id: oq-defect-scan-1
         kind: needs-maintainer-decision
         description: "Coverage and limits name inspected scope, skipped scope, evidence basis, and blind spots."
         deferred_reason: "All four named, but disposition is PARTIAL: Android lifecycle and release-build surfaces are unreachable without a harness that does not exist. Tracked as `q-android-test-harness`; the race's reproducibility is tracked as `q-wrapperclient-race-repro`."
-        id: oq-defect-scan-1
       -
         id: q-wrapperclient-race-repro
         kind: runtime-test
@@ -71,7 +71,7 @@ phases:
     carry_forward: []
 next_actions:
   - "All phases complete. Review findings; post-pipeline skills: codecarto_list_skills / codecarto_skill."
-  - "7 open question(s) and 13 post-pipeline item(s) remain — apply resolutions with codecarto_amend (write scratch/amendments/<slug>.yaml from templates/amendment.yaml)."
+  - "7 open question(s) and 9 post-pipeline item(s) remain — apply resolutions with codecarto_amend (write scratch/amendments/<slug>.yaml from templates/amendment.yaml)."
   - "Dashboard: .codecarto/dashboard.html (refreshed on completion and amendment; codecarto_dashboard re-renders on demand). Usage totals: codecarto_usage."
 post_pipeline:
   -
@@ -99,33 +99,9 @@ post_pipeline:
     source_phase: architecture
     status: pending
   -
-    id: pp-ds-1
-    kind: amendment
-    description: "Fix 3.1: re-check exitCode after inserting into pending, or guard registration and drain with a shared lock. High."
-    source_phase: defect-scan
-    status: pending
-  -
-    id: pp-ds-2
-    kind: amendment
-    description: "Fix 2.1: guard AgentController.prompt with try/catch setting SessionState.Failed, and add a CoroutineExceptionHandler to the scope as a backstop. High."
-    source_phase: defect-scan
-    status: pending
-  -
-    id: pp-ds-3
-    kind: amendment
-    description: "Fix 2.2: add withTimeout to WrapperClient.call and a shorter bound to awaitReady."
-    source_phase: defect-scan
-    status: pending
-  -
     id: pp-ds-4
     kind: amendment
     description: "Resolve 4.1: request StrongBox with fallback and verify by attestation, or soften the hardware-bound wording in SECURITY.md."
-    source_phase: defect-scan
-    status: pending
-  -
-    id: pp-ds-5
-    kind: amendment
-    description: "Fix 1.1: set onBufferOverflow = DROP_OLDEST to match the stated intent, or correct the comment."
     source_phase: defect-scan
     status: pending
   -
