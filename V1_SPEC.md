@@ -152,7 +152,7 @@ The spike closed most of the previously-open ones. Remainder:
 | Decision | Resolve when |
 |---|---|
 | UI surface (TUI / WebView / Compose-native) | After Android sandbox port runs the wrapper end-to-end |
-| GitHub auth (PAT vs OAuth device flow) | When 1.5 (auth + push) starts |
+| ~~GitHub auth (PAT vs OAuth device flow)~~ | **Resolved 2026-08-27: fine-grained PAT.** See the decision log. |
 | Memory format evolution (sectioned markdown / JSONL / sqlite-derived) | When `memory.md` exceeds ~10k entries OR when v2 phone+server work begins, whichever comes first |
 | Project name | When the product wedge becomes obvious |
 
@@ -170,6 +170,7 @@ All other prior questions are resolved (see decision log below).
 | 2026-05-09 | Inherit Kai's battery whitelist prompt | No (Kai doesn't ship it; v1 doesn't add it) |
 | 2026-05-09 | License | MIT |
 | 2026-06-02 | `@mariozechner/*` agent stack deprecated upstream | Migrate to maintained `@earendil-works/*` (pinned `0.78.0`, since moved to `0.84.3`); re-verified Q1–Q3 + wrapper suite. See CHANGELOG. |
+| 2026-08-27 | 1.5 started, and the spec deferred "PAT vs OAuth device flow" to this point | Fine-grained PAT. OAuth device flow needs a registered GitHub OAuth App and a shipped client_id — real infrastructure for a pre-1.0 project — and its scopes are coarser than a fine-grained PAT, which can be limited to specific repositories. The token is stored encrypted, injected as `GITHUB_TOKEN`, and read by a git credential helper at use time so it never lands on the guest filesystem. OAuth can be added later without changing storage or the helper; only how the token is obtained would change. |
 | 2026-08-26 | Verifying the live agent loop required real spend against Anthropic | Added `--provider` with an OpenAI-compatible `ollama` entry for development only; Anthropic stays the default and the v1 target. Verified end-to-end on Ollama Cloud: tool call + correct answer, 715 tokens. |
 | 2026-08-26 | `0.78.x` pinned vulnerable transitives via an upstream `npm-shrinkwrap.json`, unreachable by `overrides` | Migrate to `0.84.3`: `getModel` → `getBuiltinModel` (`pi-ai/providers/all`), and `Agent` now needs an explicit `streamFn` (`pi-ai/compat.streamSimple`). Production advisories 5 → 0; Q1–Q3 + 23/23 wrapper suite re-verified. |
 | 2026-06-02 | API key via env var (spike expedient) | Keep env *delivery* at spawn but scrub from `process.env` immediately after capture so it can't reach the `bash` tool or pi-ai's env fallback; non-env handshake still the longer-term goal. |

@@ -63,6 +63,23 @@ class AppViewModel(private val agent: AgentController) : ViewModel() {
         }
     }
 
+    private val _hasGitHubToken = MutableStateFlow(agent.keyStore.hasGitHubToken())
+    val hasGitHubToken: StateFlow<Boolean> = _hasGitHubToken.asStateFlow()
+
+    fun saveGitHubToken(token: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            agent.keyStore.setGitHubToken(token.trim())
+            _hasGitHubToken.value = true
+        }
+    }
+
+    fun clearGitHubToken() {
+        viewModelScope.launch(Dispatchers.IO) {
+            agent.keyStore.clearGitHubToken()
+            _hasGitHubToken.value = false
+        }
+    }
+
     fun clearApiKey() {
         val target = _provider.value
         viewModelScope.launch(Dispatchers.IO) {

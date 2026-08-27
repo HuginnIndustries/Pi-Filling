@@ -21,6 +21,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -31,7 +32,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import industries.huginn.pifilling.runtime.AgentController.SessionState
@@ -155,6 +155,8 @@ private fun SessionScreen(vm: AppViewModel, session: SessionState) {
     var input by remember { mutableStateOf("") }
     // Default to a repo path inside the sandbox; a production UI lets the user pick/clone one.
     var repoPath by remember { mutableStateOf("/root/repo") }
+    val hasStoredToken by vm.hasGitHubToken.collectAsStateWithLifecycle()
+    var gitHubToken by remember { mutableStateOf("") }
 
     LaunchedEffect(transcript.size) {
         if (transcript.isNotEmpty()) listState.animateScrollToItem(transcript.lastIndex)
@@ -170,6 +172,36 @@ private fun SessionScreen(vm: AppViewModel, session: SessionState) {
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                Spacer(Modifier.height(8.dp))
+                // Optional: only `git push` needs it. Kept here rather than behind
+                // the key-entry gate so a session that never pushes is not blocked
+                // on a credential it will not use.
+                OutlinedTextField(
+                    value = gitHubToken,
+                    onValueChange = { gitHubToken = it },
+                    label = {
+                        Text(
+                            if (hasStoredToken) "GitHub token — saved (re-enter to replace)"
+                            else "GitHub token (optional, for push)",
+                        )
+                    },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            vm.saveGitHubToken(gitHubToken)
+                            gitHubToken = ""
+                        },
+                        enabled = gitHubToken.isNotBlank(),
+                    ) { Text("Save token") }
+                    if (hasStoredToken) {
+                        TextButton(onClick = vm::clearGitHubToken) { Text("Forget token") }
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
                 Button(onClick = { vm.startSession(repoPath) }, modifier = Modifier.fillMaxWidth()) {
                     Text("Start session")

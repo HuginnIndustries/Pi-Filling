@@ -95,6 +95,9 @@ class AgentController(
             // Key decryption touches the AndroidKeyStore + disk; keep it off the
             // default dispatcher's small pool.
             val apiKey = withContext(Dispatchers.IO) { keyStore.getApiKey(provider) }
+            // Optional: only `git push` needs it, so its absence must not block
+            // a session that never pushes.
+            val gitHubToken = withContext(Dispatchers.IO) { keyStore.getGitHubToken() }
             if (apiKey.isNullOrBlank()) {
                 _session.value = SessionState.Failed("no ${provider.label} API key set")
                 return@launch
@@ -112,7 +115,7 @@ class AgentController(
                 DaemonService.start(appContext)
 
                 val proc = withContext(Dispatchers.IO) {
-                    sandbox.startWrapper(apiKey, repoGuestPath, provider, model)
+                    sandbox.startWrapper(apiKey, repoGuestPath, provider, model, gitHubToken = gitHubToken)
                 }
                 val wc = WrapperClient(proc, scope)
                 process = proc

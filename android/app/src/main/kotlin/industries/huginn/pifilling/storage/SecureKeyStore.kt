@@ -34,32 +34,62 @@ class SecureKeyStore(context: Context) {
     // reuse the previous one's key, and each is encrypted under the same
     // AndroidKeyStore master key.
 
-    fun hasApiKey(provider: AgentProvider = AgentProvider.DEFAULT): Boolean =
-        prefs.contains(provider.prefKey)
+    // ---- generic secret storage ----
+    // Everything below is one secret per named slot, encrypted under the same
+    // AndroidKeyStore master key. Provider API keys and the GitHub token differ
+    // only in which slot they occupy.
 
-    fun setApiKey(apiKey: String, provider: AgentProvider = AgentProvider.DEFAULT) {
-        val (iv, ciphertext) = encrypt(apiKey.toByteArray(Charsets.UTF_8))
-        prefs.edit()
-            .putString(provider.prefKey, encode(iv, ciphertext))
-            .apply()
+    fun hasSecret(slot: String): Boolean = prefs.contains(slot)
+
+    fun setSecret(slot: String, value: String) {
+        val (iv, ciphertext) = encrypt(value.toByteArray(Charsets.UTF_8))
+        prefs.edit().putString(slot, encode(iv, ciphertext)).apply()
     }
 
-    /** Returns the decrypted key, or null if none is stored / decryption fails. */
-    fun getApiKey(provider: AgentProvider = AgentProvider.DEFAULT): String? {
-        val stored = prefs.getString(provider.prefKey, null) ?: return null
+    /** Returns the decrypted secret, or null if none is stored / decryption fails. */
+    fun getSecret(slot: String): String? {
+        val stored = prefs.getString(slot, null) ?: return null
         return try {
             val (iv, ciphertext) = decode(stored)
             String(decrypt(iv, ciphertext), Charsets.UTF_8)
         } catch (e: Exception) {
             // Tampered/rotated key material — drop it so the user can re-enter.
-            clearApiKey(provider)
+            clearSecret(slot)
             null
         }
     }
 
-    fun clearApiKey(provider: AgentProvider = AgentProvider.DEFAULT) {
-        prefs.edit().remove(provider.prefKey).apply()
+    fun clearSecret(slot: String) {
+        prefs.edit().remove(slot).apply()
     }
+
+    // ---- provider API keys ----
+
+    fun hasApiKey(provider: AgentProvider = AgentProvider.DEFAULT): Boolean =
+        hasSecret(provider.prefKey)
+
+    fun setApiKey(apiKey: String, provider: AgentProvider = AgentProvider.DEFAULT) =
+        setSecret(provider.prefKey, apiKey)
+
+    fun getApiKey(provider: AgentProvider = AgentProvider.DEFAULT): String? =
+        getSecret(provider.prefKey)
+
+    fun clearApiKey(provider: AgentProvider = AgentProvider.DEFAULT) =
+        clearSecret(provider.prefKey)
+
+    // ---- GitHub ----
+    //
+    // A fine-grained personal access token, scoped by the user to the
+    // repositories the agent may push to (V1_SPEC decision, 2026-08-27).
+    // Optional: everything except `git push` works without it.
+
+    fun hasGitHubToken(): Boolean = hasSecret(GITHUB_TOKEN)
+
+    fun setGitHubToken(token: String) = setSecret(GITHUB_TOKEN, token)
+
+    fun getGitHubToken(): String? = getSecret(GITHUB_TOKEN)
+
+    fun clearGitHubToken() = clearSecret(GITHUB_TOKEN)
 
     // ---- crypto ----
 
@@ -108,6 +138,7 @@ class SecureKeyStore(context: Context) {
         const val ANDROID_KEYSTORE = "AndroidKeyStore"
         const val KEY_ALIAS = "pifilling_master"
         const val PREFS_NAME = "pifilling_secure_prefs"
+        const val GITHUB_TOKEN = "github_token"
         const val TRANSFORMATION = "AES/GCM/NoPadding"
         const val GCM_TAG_BITS = 128
         const val DELIM = ":"

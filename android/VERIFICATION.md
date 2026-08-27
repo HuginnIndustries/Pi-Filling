@@ -7,6 +7,36 @@ from assumption.
 
 Device serials and any device content are deliberately excluded from this file.
 
+## 2026-08-27 — GitHub auth plumbing
+
+Plan step C, first half. V1_SPEC deferred "PAT vs OAuth device flow" to the start
+of 1.5; resolved to a fine-grained PAT (see its decision log).
+
+### Passed
+
+| # | Claim | Evidence |
+|---|---|---|
+| 26 | git can push from inside the sandbox at all | Pushed to a local bare remote in the guest; `show-ref` on the bare repo reports `refs/heads/main` at a real SHA |
+| 27 | HTTPS transport reaches GitHub from the guest | git 2.47.3 with `git-remote-https`; an unauthenticated request fails at the *credential* stage, not on DNS or TLS |
+| 28 | **The credential helper delivers the token** | With the helper disabled: `fatal: could not read Username` — nothing offered a credential. With it enabled and a deliberately wrong token in the environment: `remote: Invalid username or token` — GitHub received and rejected ours. Two different errors, so the helper demonstrably fires |
+| 29 | The token is not written to the guest filesystem | `git config --get credential.https://github.com.helper` reads back `!f() { echo username=x-access-token; echo password=$GITHUB_TOKEN; }; f` — the stored value holds the variable's *name*, unexpanded |
+| 30 | The provisioning backfill reached an existing sandbox | `backfilled sandbox setup v3 -> v4`, marker `alpine=3.21.3 abi=arm64-v8a setup=4` |
+
+### Not proved
+
+- **No real push to a real GitHub repository has happened.** That needs a real
+  fine-grained PAT. Everything up to "GitHub rejected this specific token" is
+  verified; whether a *valid* token completes a push is not.
+- **The agent has not been asked to push.** Claims 26–29 exercise git directly.
+  Driving it through a prompt is the remaining half of step C.
+
+### A test that proved nothing, recorded so it is not repeated
+
+The first attempt pointed `ls-remote` at `octocat/Hello-World`. That repository is
+public, so all three cases — no helper, helper with no token, helper with a wrong
+token — succeeded identically. The run looked like a pass and demonstrated
+nothing. An auth-requiring target is what makes the comparison discriminating.
+
 ## 2026-08-27 — Android test harness
 
 Plan step B. `android/` had no tests of any kind, which the defect scan named as

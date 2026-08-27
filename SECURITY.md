@@ -50,6 +50,24 @@ stated plainly so operators aren't surprised:
   hardware-bound AndroidKeyStore AES-256-GCM key (`SecureKeyStore`). The
   spec's longer-term goal is a non-env key handshake (stdin/socket); the env path
   with immediate scrub is the current state.
+- **The GitHub token is reachable by the agent, by design.** Push happens
+  through the agent's `bash` tool running `git push`, so any credential git can
+  use, the agent can also read. The token is injected as `GITHUB_TOKEN` into the
+  wrapper's environment and consumed by a git credential helper configured in
+  the guest, which reads the variable at use time — the configured value holds
+  only the variable's *name*, and the token is never written to the guest
+  filesystem. (`git-credential-store`, the obvious alternative, would persist it
+  in plaintext at `~/.git-credentials` inside a rootfs that outlives the
+  session.) The helper is scoped to `https://github.com` so it is not offered to
+  other hosts.
+
+  What this does **not** do is hide the token from the agent, and no arrangement
+  short of moving push out of the sandbox could. Containment is therefore the
+  token's own scope: V1_SPEC specifies a **fine-grained** personal access token,
+  which should be limited to the repositories the agent may write and to
+  `contents: read/write`. Treat it as you would a credential handed to any
+  program you run — because that is what it is.
+
 - **The `bash` tool runs arbitrary shell.** The agent's `bash` tool executes
   model-chosen commands with no allowlist at the wrapper layer. **proot is an
   isolation/compat layer, not a security sandbox** — it does not contain a

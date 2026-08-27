@@ -111,10 +111,15 @@ run proved from what it did not.
   embedded TUI. Three screens: key entry with provider chooser, provisioning,
   session. Deliberately minimal — no tool-call rendering, diffs, cost meter or
   run history yet.
-- **1.5 GitHub auth + push.** ❌ **not started, and the only thing standing
-  between the current build and Stage 1's acceptance test.** The agent commits
-  locally; nothing pushes. Needs a token flow, credential storage, and HTTPS push
-  from inside Alpine.
+- **1.5 GitHub auth + push.** 🟡 in progress. Auth decided (fine-grained PAT)
+  and wired: the token is stored encrypted per the existing key mechanism,
+  injected as `GITHUB_TOKEN`, and consumed by a `https://github.com`-scoped git
+  credential helper that reads it at use time, so it never touches the guest
+  filesystem. Verified on device that git push works to a local remote, that
+  HTTPS transport reaches GitHub, and that the helper actually delivers the
+  token — with the helper disabled git reports `could not read Username`, and
+  with it enabled GitHub rejects a deliberately wrong token by name. **Not yet
+  proved: a real push to a real GitHub repository**, which needs a real PAT.
 - **1.6 First-run UX.** ❌ not started.
 
 ### Deliberately out of v1

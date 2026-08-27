@@ -135,6 +135,7 @@ class LinuxSandboxManager(
             check(add.success) { "apk add failed: ${add.stderr.take(500)}" }
 
             configureGitIdentity(executor)
+        configureGitCredentialHelper(executor)
 
             _state.value = SandboxState.Installing("wrapper")
             deployWrapper(executor)
@@ -174,6 +175,7 @@ class LinuxSandboxManager(
             val executor = createExecutor()
             if (have < 2) configureGitIdentity(executor)
             if (have < 3) installPackages(executor)
+            if (have < 4) configureGitCredentialHelper(executor)
         }
             .onSuccess {
                 writeMarker()
@@ -225,6 +227,38 @@ class LinuxSandboxManager(
             timeoutSeconds = 30,
         )
         check(result.success) { "git config failed: ${result.stderr.take(300)}" }
+    }
+
+    /**
+     * Teach git in the guest how to authenticate to GitHub, without writing the
+     * credential anywhere.
+     *
+     * The helper is a shell function that reads `$GITHUB_TOKEN` from the
+     * environment **at use time**, so the configured value contains no secret —
+     * only the name of a variable. `git-credential-store`, the obvious
+     * alternative, would persist the token in plaintext at
+     * `~/.git-credentials` inside a rootfs that outlives the session.
+     *
+     * Scoped to `https://github.com` rather than set globally, so the helper is
+     * never offered to some other host the agent happens to talk to.
+     *
+     * The username is literal: GitHub accepts any username when the password is
+     * a PAT, and `x-access-token` is its documented convention.
+     *
+     * This does not hide the token from the agent — the `bash` tool inherits the
+     * environment, and the agent is what runs `git push`. Containment is the
+     * token's own scope, which is why V1_SPEC specifies a *fine-grained* PAT.
+     * See SECURITY.md.
+     */
+    private suspend fun configureGitCredentialHelper(executor: ProotExecutor) {
+        // Single-quoted in the shell and escaped here, so $GITHUB_TOKEN reaches
+        // git's config verbatim and expands only when the helper runs.
+        val helper = "!f() { echo username=x-access-token; echo password=\$GITHUB_TOKEN; }; f"
+        val result = executor.execute(
+            "git config --global credential.https://github.com.helper '$helper'",
+            timeoutSeconds = 30,
+        )
+        check(result.success) { "git credential helper config failed: ${result.stderr.take(300)}" }
     }
 
     private fun writeMarker() {
@@ -289,6 +323,13 @@ class LinuxSandboxManager(
         provider: AgentProvider = AgentProvider.DEFAULT,
         model: String? = null,
         logLevel: String = "info",
+        /**
+         * Optional fine-grained GitHub PAT. Reaches git via the credential
+         * helper configured at provisioning, which reads it from the
+         * environment; it is never written to the guest filesystem. Omitting it
+         * simply means `git push` fails to authenticate — everything else works.
+         */
+        gitHubToken: String? = null,
     ): Process {
         check(isReady) { "sandbox not ready" }
         val modelArg = model?.let { " --model $it" } ?: ""
@@ -298,12 +339,15 @@ class LinuxSandboxManager(
         return createExecutor().start(
             command = command,
             workingDir = repoGuestPath,
-            extraEnv = mapOf(
+            extraEnv = buildMap {
                 // Each provider reads only its own variable, so this must match
                 // the wrapper's PROVIDERS table (see AgentProvider).
-                provider.keyEnv to apiKey,
-                "WRAPPER_LOG_LEVEL" to logLevel,
-            ),
+                put(provider.keyEnv, apiKey)
+                put("WRAPPER_LOG_LEVEL", logLevel)
+                // Unlike the provider key, this one must survive into the bash
+                // tool's children: git is what consumes it.
+                gitHubToken?.takeIf { it.isNotBlank() }?.let { put("GITHUB_TOKEN", it) }
+            },
         )
     }
 
@@ -317,7 +361,7 @@ class LinuxSandboxManager(
         const val TAG = "LinuxSandboxManager"
 
         /** Bump when setup() gains a step that existing sandboxes need backfilled. */
-        const val SETUP_VERSION = 3
+        const val SETUP_VERSION = 4
         const val APK_PACKAGES = "nodejs npm git bash"
         const val GIT_USER_NAME = "Pi-Filling Agent"
         const val GIT_USER_EMAIL = "agent@pi-filling.local"
