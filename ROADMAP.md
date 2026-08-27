@@ -205,14 +205,30 @@ and diff cards, which need no protocol work and remove the most typing per unit
 of effort. Session resume next, because losing a run to a phone call is the most
 annoying failure left. Skills, share-sheet and OCR after the core loop is good.
 
-### Open decisions
+### Decisions
 
-- **Where the voice extension lives.** Keeping it in `pi-termux-android-voice`
-  with a pluggable backend means one extension serving both Termux and
-  Pi-Filling, at the cost of some indirection. Vendoring it here is simpler but
-  forks a project that already works.
-- **Whether the host-capability channel is Pi-Filling-specific or a pi-level
-  proposal.** Any pi host embedded in a native app has this same gap.
+Both open questions from the first pass are now settled.
+
+- **The voice extension is vendored here** (decided 2026-08-27). We will be
+  modifying it — the transport is being replaced outright, and the command
+  surface will grow phone-specific behaviour that Termux has no use for — so a
+  shared upstream would be carrying a fork in all but name. `pi-termux-android-voice`
+  stays the canonical Termux implementation; this becomes a sibling that shares
+  its design and its command vocabulary, with attribution.
+- **The host-capability channel is ours first, shaped so it could become pi's**
+  (decided 2026-08-27). `ExtensionAPI` gives an extension lifecycle hooks,
+  commands and tools, but **no host surface** — to affect the world it has only
+  Node's own escape hatches. That is why the Termux version shells out to
+  `termux-tts-speak`, and why nothing of the sort can work from inside proot.
+  The gap is general: any pi embedded in a native app hits it. But proposing an
+  API upstream before having built one is the weak version of that conversation,
+  and vendoring the extension removes portability as a benefit to us anyway.
+
+  So: build it here, under constraints that keep the upstream door open —
+  namespaced capability names (`tts.speak`, never `pifillingSpeak`), no Android
+  specifics in the wire format, and the transport isolated behind one module so
+  swapping it is a one-file change. If it proves out, write it up for pi with
+  the experience attached.
 
 ## Stage 1.5 — Polish and observability
 

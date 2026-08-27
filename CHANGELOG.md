@@ -120,9 +120,20 @@ dependencies, docs) drove the following.
   is a director and reviewer, not a typist. Suggestion chips, prompt templates,
   one-tap skills, diff review with per-hunk accept, session resume, share-sheet
   ingestion, OCR.
-- No implementation yet. Two open decisions are recorded rather than assumed:
-  where the voice extension lives, and whether the capability channel should be
-  proposed upstream to pi.
+- No implementation yet, but both open decisions are now settled. The voice
+  extension is **vendored here**: its transport is being replaced outright and it
+  will grow phone-specific behaviour Termux has no use for, so sharing it
+  upstream would be a fork in disguise. `pi-termux-android-voice` stays canonical
+  for Termux; this is a sibling sharing its design and command vocabulary, with
+  attribution.
+- The capability channel is **ours first, shaped so it could become pi's**. pi's
+  `ExtensionAPI` has lifecycle hooks, commands and tools but no host surface —
+  which is exactly why the Termux version shells out to a Termux:API binary, and
+  why that cannot work from inside proot. The gap is general to any pi embedded
+  in a native app, but a proposal is stronger after shipping than before. Three
+  constraints keep the door open at no cost: namespaced host-neutral capability
+  names, no Android specifics on the wire, and the transport isolated behind one
+  module.
 
 ### bash in the sandbox
 

@@ -165,6 +165,36 @@ problems it could not solve. Layer 1 is that app:
 | Requires the Termux:API app plus `pkg install termux-api` | No dependency; Layer 1 *is* the Android app |
 | A subprocess per utterance | One long-lived `TextToSpeech` instance |
 
+### Keeping the upstream door open
+
+The channel is Pi-Filling's, not pi's — for now. pi's `ExtensionAPI` offers
+lifecycle hooks, commands and tools but **no host surface**, so an extension can
+only reach the world through Node itself. That is precisely why the Termux
+implementation shells out to a Termux:API binary, and precisely why that approach
+cannot survive inside proot.
+
+The gap is not ours alone: any pi embedded in a native app — Electron, VS Code, a
+mobile shell — has the same wall and works around it with packaging-specific
+hacks. That makes this a plausible upstream proposal later, but a proposal is
+stronger after something has shipped than before.
+
+So the channel is built here under three constraints that cost nothing now and
+keep that option alive:
+
+- capability names are **namespaced and host-neutral** (`tts.speak`, never
+  `pifillingSpeak`);
+- **no Android specifics leak into the wire format** — no intents, no Android
+  types, no `TextToSpeech` fields;
+- the extension's **transport is isolated behind a single module**, so pointing
+  it at a future `pi.host.request(...)` is a one-file change rather than a
+  rewrite.
+
+The voice extension itself is **vendored into this repo** rather than shared with
+`pi-termux-android-voice`. We are replacing its transport outright and will grow
+phone-specific behaviour Termux has no use for, so a shared upstream would be a
+fork wearing a disguise. That project stays canonical for Termux; this is a
+sibling sharing its design and command vocabulary, with attribution.
+
 ### Voice input is not a capability we build
 
 Any Android dictation keyboard — Gboard voice typing, Samsung voice input — types
