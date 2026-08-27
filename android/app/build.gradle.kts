@@ -80,6 +80,14 @@ android {
 
     // proot ELF binaries are shipped as .so but are NOT real shared libraries;
     // do not let the packager compress or page-align them away.
+    // android.util.Log is a stub in JVM unit tests and throws by default, which
+    // would fail every test that touches logging code rather than the code under
+    // test. Returning defaults keeps WrapperClient and friends unit-testable on
+    // the JVM without dragging in Robolectric.
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+
     packaging {
         jniLibs {
             useLegacyPackaging = true
@@ -111,6 +119,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

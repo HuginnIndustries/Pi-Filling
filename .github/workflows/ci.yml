@@ -101,7 +101,7 @@ jobs:
         run: npm run spike
 
   android-build:
-    name: android · assembleDebug
+    name: android · unit tests + assembleDebug
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -120,6 +120,11 @@ jobs:
       # The scaffold had never been compiled before this job existed, so a
       # broken Kotlin change could land unnoticed — the same blind spot that let
       # a breaking dependency bump report green for spike-host-alpine.
+      # Unit tests run before the APK: android/ had no tests at all until the
+      # defect scan showed both high findings were in Kotlin while the wrapper,
+      # which has 25 tests, held none. These cover the wrapper-death path.
+      - name: Unit tests (JVM, no emulator)
+        run: ./gradlew testDebugUnitTest --no-daemon
       - name: Build debug APK
         run: ./gradlew assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4

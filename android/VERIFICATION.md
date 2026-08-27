@@ -7,6 +7,47 @@ from assumption.
 
 Device serials and any device content are deliberately excluded from this file.
 
+## 2026-08-27 — Android test harness
+
+Plan step B. `android/` had no tests of any kind, which the defect scan named as
+the mechanism behind its own severity distribution: the Node wrapper carried 25
+tests and handled every hostile input it was given, while both high findings sat
+in untested Kotlin.
+
+### What exists now
+
+13 JVM unit tests, no emulator, wired into CI ahead of `assembleDebug`.
+`FakeWrapperProcess` stands in for the wrapper — the client only ever touches
+`java.lang.Process`, so stdout/stderr become pipes the test writes into, stdin is
+captured for assertions, and the exit path is triggered on demand.
+
+Real dispatchers rather than virtual time, deliberately: the readers are blocking
+stream loops and the defects are about a separate OS process dying or going
+quiet, so faking the clock would fake away the thing under test. Every test is
+wrapped in `withTimeout`, so a regression that reopens an unbounded wait fails
+the suite instead of stalling it.
+
+### Passed
+
+| # | Claim | Evidence |
+|---|---|---|
+| 23 | The tests are discriminating, not decorative | **Negative control run per fix.** Reverting `DROP_OLDEST` fails exactly the overflow test; reverting the timeouts fails exactly the two timeout tests; restoring both returns the suite to green. A test that passes before and after a fix proves nothing, so this was checked rather than assumed |
+| 24 | The wrapper-death contract holds under load | 40 concurrent callers racing a process exit: all 40 terminate, all with `WrapperProcessExitedException`, none hang |
+| 25 | Protocol handling survives hostile input | Malformed JSON, a line with neither `event` nor `id`, and free-form stderr all leave the reader alive and the handshake reachable |
+
+### Not proved
+
+- **The race in finding 3.1 was never reproduced.** Its window is microseconds
+  wide, so the concurrency test pins the *contract* — once the process has
+  exited, no call may hang — rather than demonstrating the original defect. A
+  negative control for it would be probabilistic, so none is claimed.
+- **No UI, lifecycle or Compose behaviour is covered.** These are unit tests of
+  the wrapper client. Rotation, process death and background restore remain
+  untested, and would need Robolectric or instrumented tests.
+- `AgentController`, `LinuxSandboxManager` and `RootfsDownloader` still have no
+  tests. `RootfsDownloader`'s tar handling is the most defect-prone of those and
+  is the obvious next target — two of the six device bugs were in it.
+
 ## 2026-08-27 — wrapper-death hardening
 
 Plan step A. Four defect-report findings, all on the same failure path: what
