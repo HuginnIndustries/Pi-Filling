@@ -112,7 +112,7 @@ jobs:
       # opaque "* What went wrong: 25.0.4", and jvmToolchain(17) does not help
       # because it is the daemon JVM that has to be old enough. See
       # android/README.md.
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
